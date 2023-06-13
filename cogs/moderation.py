@@ -115,6 +115,7 @@ class Moderation(commands.Cog, name="moderation"):
     @commands.has_permissions(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     @checks.not_blacklisted()
+    @checks.is_owner()
     @app_commands.describe(
         user="The user that should be banned.",
         reason="The reason why the user should be banned.",

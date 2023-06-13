@@ -1,15 +1,7 @@
-""""
-Copyright © Krypton 2019-2023 - https://github.com/kkrypt0nn (https://krypton.ninja)
-Description:
-🐍 A simple template to start to code your own and personalized discord bot in Python programming language.
-
-Version: 5.5.0
-"""
-
+import os
 import platform
 import random
 
-import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -17,21 +9,84 @@ from discord.ext.commands import Context
 
 from helpers import checks
 
+CHANNEL_INFO = {
+    "🔊-공지에요": "V-AIS의 공지가 올라옵니다!",
+    "💡geek-news": "최신 IT 관련 정보들을 볼 수 있습니다!",
+    "💬잡담-잡담": "이런 저런 다양한 얘기를 하는 곳이에요!",
+    "🙋질문과-답변": "자유롭게 질문 답변하는 채널입니다!",
+    "📈주식-이모저모": "주식 관련 이야기를 나누는 채널입니다!",
+    "🎮게임-이모저모": "게임 관련 이야기를 나누는 채널입니다!",
+    "💼채용-공고": "채용 관련 정보를 공유하는 채널입니다!",
+    "🏬중고-마켓": "중고 마켓을 운영하기 위한 채널입니다!\n자세한 사항은 https://jjerry.notion.site/V-AIS-Market-bd9a224502aa4fed9fd8f7cd6f54e044 여기를 참고해주세요!",
+    "📝건의합니다": "V-AIS 서버 관련해서 건의 사항을 적는 곳입니다!\n다양한 의견 많이 많이 주세요!",
+    "📚today-i-learned": "오늘은 무엇을 공부했는지 공유하는 채널이에요!",
+    
+    "📼유튜브-영상": "여러 유튜브 채널의 영상이 올라옵니다!",
+    "📖책-공유": "다양한 책들을 공유하는 곳입니다!",
+    "📓논문-공유": "힙한 논문을 공유해봅시다!",
+    "📂자료-공유": "공부하는데 좋은 자료가 있으면 같이 봐요!",
+    "💼진로-정보-공유": "취업/진학등의 정보를 공유하는 채널입니다!",
+    "🗣인터뷰-정보-공유":"면접에 관련된 정보를 공유하는 채널입니다!\n추후 깃허브 레포를 만들어 볼 예정이에요!",
+    
+    "📚스터디-모집": "하고 싶은 스터디가 있고 멤버 모집을 하고 싶으시면 말씀해주세요!",
+    "📚프로젝트-모집": "하고 싶은 프로젝트가 있고 멤버 모집을 하고 싶으시면 말씀해주세요!",
+    "봇-실험": "이런...저런....봇을 실험 하는 곳입니다...ㅎㅎ",
+    
+    "스터디 룸 101": "스터디룸101 음성채팅에 참여하신 분들을 위한 공간입니다!",
+    "스터디 룸 102": "스터디룸102 음성채팅에 참여하신 분들을 위한 공간입니다!",
+    "스터디 룸 103": "스터디룸103 음성채팅에 참여하신 분들을 위한 공간입니다!",
+}
+
+def get_server_info():
+    with open("/proc/cpuinfo", "r") as f:
+        cpuinfo = f.readlines()
+        for tmp in cpuinfo:
+            if "model name" in tmp: break
+        cpuinfo = tmp.split("model name\t: ")[-1].strip()
+    
+    with open("/proc/meminfo", "r") as f:
+        meminfo = f.readlines()
+        memtot, memavailable = None, None
+        for tmp in meminfo:
+            if "MemTotal" in tmp: 
+                memtot = float(tmp.split("MemTotal:")[-1].strip()[:-3])
+                
+            elif "MemAvailable" in tmp: 
+                memavailable = float(tmp.split("MemAvailable:")[-1].strip()[:-3])
+            
+            if memtot and memavailable: break
+        meminfo = f"{(memtot-memavailable)/1024/1024:.2f}GB/{memtot/1024/1024:.2f}GB"
+    
+    cputemp1 = cputempm = None
+    if os.path.exists("/sys/class/thermal/thermal_zone0/temp"):
+        with open("/sys/class/thermal/thermal_zone0/temp") as f:
+            cputemp0 = float(f.readline())
+        cputemp1 = int(cputemp0 // 1000)
+        cputemp2 = int(cputemp0 // 100)
+        cputempm = cputemp2 % cputemp1
+
+    result = {
+        "Server Name": platform.node(),
+        "OS": platform.version().split(' ')[0][1:],
+        "CPU": cpuinfo,
+        "Memory": meminfo,
+        "Temperature": f"{cputemp1}.{cputempm}°C" if isinstance(cputemp1, int) else f"확인불가"
+    }
+    return result
 
 class General(commands.Cog, name="general"):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.hybrid_command(
-        name="help", description="List all commands the bot has loaded."
-    )
+    @commands.hybrid_command(name="도움말", description="봇의 명령어 리스트입니다")
     @checks.not_blacklisted()
     async def help(self, context: Context) -> None:
         prefix = self.bot.config["prefix"]
         embed = discord.Embed(
-            title="Help", description="List of available commands:", color=0x9C84EF
+            title="도움말", description="봇 명령어 리스트:", color=0x9C84EF
         )
         for i in self.bot.cogs:
+            if i.lower() in ["owner", "moderation"]: continue
             cog = self.bot.get_cog(i.lower())
             commands = cog.get_commands()
             data = []
@@ -44,10 +99,7 @@ class General(commands.Cog, name="general"):
             )
         await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="botinfo",
-        description="Get some useful (or not) information about the bot.",
-    )
+    @commands.hybrid_command(name="봇정보",description="봇의 정보를 보여줍니다.",)
     @checks.not_blacklisted()
     async def botinfo(self, context: Context) -> None:
         """
@@ -55,27 +107,29 @@ class General(commands.Cog, name="general"):
 
         :param context: The hybrid command context.
         """
+        bot_hardware_info = get_server_info()
         embed = discord.Embed(
-            description="Used [Krypton's](https://krypton.ninja) template",
+            description="[Krypton's](https://krypton.ninja) template을 이용하였습니다!",
             color=0x9C84EF,
         )
         embed.set_author(name="Bot Information")
-        embed.add_field(name="Owner:", value="Krypton#7331", inline=True)
+        embed.add_field(name="Owner:", value="V-AIS", inline=True)
         embed.add_field(
             name="Python Version:", value=f"{platform.python_version()}", inline=True
         )
+        embed.add_field(name="OS", value=bot_hardware_info["OS"], inline=False)
+        embed.add_field(name="CPU", value=bot_hardware_info["CPU"], inline=False)
+        embed.add_field(name="Memory", value=bot_hardware_info["Memory"], inline=True)
+        embed.add_field(name="Temperature", value=bot_hardware_info["Temperature"], inline=False)
         embed.add_field(
             name="Prefix:",
-            value=f"/ (Slash Commands) or {self.bot.config['prefix']} for normal commands",
+            value=f"/ (Slash Commands) 혹은 {self.bot.config['prefix']} 를 이용하여 커맨드를 입력하세요",
             inline=False,
         )
         embed.set_footer(text=f"Requested by {context.author}")
         await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="serverinfo",
-        description="Get some useful (or not) information about the server.",
-    )
+    @commands.hybrid_command(name="서버정보",description="V-AIS 서버 정보를 보여줍니다",)
     @checks.not_blacklisted()
     async def serverinfo(self, context: Context) -> None:
         """
@@ -90,23 +144,18 @@ class General(commands.Cog, name="general"):
         roles = ", ".join(roles)
 
         embed = discord.Embed(
-            title="**Server Name:**", description=f"{context.guild}", color=0x9C84EF
+            title="**서버 이름:**", description=f"{context.guild}", color=0x9C84EF
         )
         if context.guild.icon is not None:
             embed.set_thumbnail(url=context.guild.icon.url)
-        embed.add_field(name="Server ID", value=context.guild.id)
-        embed.add_field(name="Member Count", value=context.guild.member_count)
+        embed.add_field(name="서버 ID", value=context.guild.id)
+        embed.add_field(name="인원 수", value=context.guild.member_count)
         embed.add_field(
-            name="Text/Voice Channels", value=f"{len(context.guild.channels)}"
+            name="채널 수", value=f"{len(context.guild.channels)}"
         )
-        embed.add_field(name=f"Roles ({len(context.guild.roles)})", value=roles)
-        embed.set_footer(text=f"Created at: {context.guild.created_at}")
         await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="ping",
-        description="Check if the bot is alive.",
-    )
+    @commands.hybrid_command(name="ping",description="봇...살아있니..?",)
     @checks.not_blacklisted()
     async def ping(self, context: Context) -> None:
         """
@@ -121,56 +170,10 @@ class General(commands.Cog, name="general"):
         )
         await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="invite",
-        description="Get the invite link of the bot to be able to invite it.",
-    )
+    @commands.hybrid_command(name="질문",description="봇한테 물어보세요!",)
     @checks.not_blacklisted()
-    async def invite(self, context: Context) -> None:
-        """
-        Get the invite link of the bot to be able to invite it.
-
-        :param context: The hybrid command context.
-        """
-        embed = discord.Embed(
-            description=f"Invite me by clicking [here](https://discordapp.com/oauth2/authorize?&client_id={self.bot.config['application_id']}&scope=bot+applications.commands&permissions={self.bot.config['permissions']}).",
-            color=0xD75BF4,
-        )
-        try:
-            # To know what permissions to give to your bot, please see here: https://discordapi.com/permissions.html and remember to not give Administrator permissions.
-            await context.author.send(embed=embed)
-            await context.send("I sent you a private message!")
-        except discord.Forbidden:
-            await context.send(embed=embed)
-
-    @commands.hybrid_command(
-        name="server",
-        description="Get the invite link of the discord server of the bot for some support.",
-    )
-    @checks.not_blacklisted()
-    async def server(self, context: Context) -> None:
-        """
-        Get the invite link of the discord server of the bot for some support.
-
-        :param context: The hybrid command context.
-        """
-        embed = discord.Embed(
-            description=f"Join the support server for the bot by clicking [here](https://discord.gg/mTBrXyWxAF).",
-            color=0xD75BF4,
-        )
-        try:
-            await context.author.send(embed=embed)
-            await context.send("I sent you a private message!")
-        except discord.Forbidden:
-            await context.send(embed=embed)
-
-    @commands.hybrid_command(
-        name="8ball",
-        description="Ask any question to the bot.",
-    )
-    @checks.not_blacklisted()
-    @app_commands.describe(question="The question you want to ask.")
-    async def eight_ball(self, context: Context, *, question: str) -> None:
+    @app_commands.describe(question="어떤 질문을 하실건가요?")
+    async def question(self, context: Context, *, question: str) -> None:
         """
         Ask any question to the bot.
 
@@ -200,46 +203,22 @@ class General(commands.Cog, name="general"):
             "Very doubtful.",
         ]
         embed = discord.Embed(
-            title="**My Answer:**",
+            title="**답변:**",
             description=f"{random.choice(answers)}",
             color=0x9C84EF,
         )
-        embed.set_footer(text=f"The question was: {question}")
+        embed.set_footer(text=f"질문: {question}")
         await context.send(embed=embed)
-
-    @commands.hybrid_command(
-        name="bitcoin",
-        description="Get the current price of bitcoin.",
-    )
+    
+    @commands.hybrid_command(name="채널정보", description="해당 채널의 정보를 알려드립니다!",)
     @checks.not_blacklisted()
-    async def bitcoin(self, context: Context) -> None:
-        """
-        Get the current price of bitcoin.
-
-        :param context: The hybrid command context.
-        """
-        # This will prevent your bot from stopping everything when doing a web request - see: https://discordpy.readthedocs.io/en/stable/faq.html#how-do-i-make-a-web-request
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                "https://api.coindesk.com/v1/bpi/currentprice/BTC.json"
-            ) as request:
-                if request.status == 200:
-                    data = await request.json(
-                        content_type="application/javascript"
-                    )  # For some reason the returned content is of type JavaScript
-                    embed = discord.Embed(
-                        title="Bitcoin price",
-                        description=f"The current price is {data['bpi']['USD']['rate']} :dollar:",
-                        color=0x9C84EF,
-                    )
-                else:
-                    embed = discord.Embed(
-                        title="Error!",
-                        description="There is something wrong with the API, please try again later",
-                        color=0xE02B2B,
-                    )
-                await context.send(embed=embed)
-
+    async def channel_info(self, context: Context) -> None:
+        embed = discord.Embed(
+            title=f"{context.channel.name}",
+            description= CHANNEL_INFO[context.channel.name] if context.channel.name in CHANNEL_INFO else "이 채널에 대한 정보가 아직 없습니다!",
+            color=0x9C84EF,
+        )
+        await context.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(General(bot))

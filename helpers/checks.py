@@ -34,7 +34,6 @@ def is_owner() -> Callable[[T], T]:
 
     return commands.check(predicate)
 
-
 def not_blacklisted() -> Callable[[T], T]:
     """
     This is a custom check to see if the user executing the command is blacklisted.

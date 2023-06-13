@@ -10,6 +10,7 @@ import random
 
 import aiohttp
 import discord
+from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Context
 
@@ -104,6 +105,7 @@ class Fun(commands.Cog, name="fun"):
         self.bot = bot
 
     @commands.hybrid_command(name="randomfact", description="Get a random fact.")
+    @app_commands.guilds(discord.Object(id=1082978815334170684)) # Place your guild ID here
     @checks.not_blacklisted()
     async def randomfact(self, context: Context) -> None:
         """

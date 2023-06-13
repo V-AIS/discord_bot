@@ -11,15 +11,19 @@ import json
 import logging
 import os
 import platform
-import random
 import sys
+from datetime import datetime, timedelta
 
+import pymongo
 import aiosqlite
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Bot, Context
 
 import exceptions
+import archiving
+import helpers
+import utils
 
 if not os.path.isfile(f"{os.path.realpath(os.path.dirname(__file__))}/config.json"):
     sys.exit("'config.json' not found! Please add it and try again.")
@@ -61,6 +65,7 @@ intents.presences = True
 """
 
 intents = discord.Intents.default()
+intents.message_content = True
 
 """
 Uncomment this if you want to use prefix (normal) commands.
@@ -77,7 +82,6 @@ bot = Bot(
 )
 
 # Setup both of the loggers
-
 
 class LoggingFormatter(logging.Formatter):
     # Colors
@@ -130,6 +134,9 @@ bot.logger = logger
 
 
 async def init_db():
+    # mongodb setting
+        
+    # sql setting
     async with aiosqlite.connect(
         f"{os.path.realpath(os.path.dirname(__file__))}/database/database.db"
     ) as db:
@@ -149,6 +156,9 @@ The config is available using the following code:
 """
 bot.config = config
 
+bot.youtube = utils.YoutubeFeed(logger)
+bot.tldr = utils.TLDRFeed()
+bot.discourse = utils.ToDiscourse(bot.config)
 
 @bot.event
 async def on_ready() -> None:
@@ -160,7 +170,13 @@ async def on_ready() -> None:
     bot.logger.info(f"Python version: {platform.python_version()}")
     bot.logger.info(f"Running on: {platform.system()} {platform.release()} ({os.name})")
     bot.logger.info("-------------------")
+    
     status_task.start()
+    news_feed.start()
+    youtube_feed.start()
+    tldr_feed.start()
+    
+    # Insert channel info to DB
     if config["sync_commands_globally"]:
         bot.logger.info("Syncing commands globally...")
         await bot.tree.sync()
@@ -171,9 +187,44 @@ async def status_task() -> None:
     """
     Setup the game status task of the bot.
     """
-    statuses = ["with you!", "with Krypton!", "with humans!"]
-    await bot.change_presence(activity=discord.Game(random.choice(statuses)))
+    await bot.change_presence(activity=discord.Game("ZzZz"))
 
+@tasks.loop(seconds=1)
+async def news_feed():
+    now = datetime.now()
+    channel = bot.get_channel(1082998215814688829)
+    if now.strftime("%H:%M:%S") == "09:00:00":
+        feeds = utils.get_investing_finance_news()
+        title = f"{now.strftime('%Y-%m-%d')} Stock Market News (Investing)"
+        embed = discord.Embed(title=f"{title}")
+        for news in feeds:
+            embed.add_field(name=news.title, value=news.link, inline=False)
+        await channel.send(embed=embed)
+
+@tasks.loop(minutes=2.5)
+async def youtube_feed():
+    channel = bot.get_channel(1105872936776245349)
+    await bot.youtube.get_new_video()
+    rows = await helpers.db_manager.get_youtube_video()
+    for row in rows:
+        await channel.send(row[2])
+        await helpers.db_manager.update_youtube_video(row[0], row[1], row[2])
+    
+@tasks.loop(seconds=1)
+async def tldr_feed():
+    now = datetime.now()
+    channel = bot.get_channel(1110112301106860052)
+    if now.strftime("%H:%M:%S") == "09:00:00":
+        date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        feeds = await bot.tldr.get_feed(date)
+        for field in feeds:
+            await channel.send(f"# Daily TLDR {field.upper()} ({date})\n")
+            for subject in feeds[field]:
+                embed = discord.Embed(title=subject)
+                for title in feeds[field][subject]:
+                    value =  f"{feeds[field][subject][title]['link']}\n{feeds[field][subject][title]['content']}\n\n"
+                    embed.add_field(name=title, value=value, inline=False)
+                await channel.send(embed=embed)
 
 @bot.event
 async def on_message(message: discord.Message) -> None:
@@ -183,7 +234,21 @@ async def on_message(message: discord.Message) -> None:
     :param message: The message that was sent.
     """
     if message.author == bot.user or message.author.bot:
-        return
+        if message.channel.name == "💡geek-news":
+            bot.discourse.post_geeknews(message)
+        else:
+            return
+    # 모든 로그 수집
+    await helpers.db_manager.add_log(**archiving.chat2log(message))
+    
+    # Github Repository Archiving
+    if ("https://github.com/" in message.content):
+        await archiving.archive_github(message)
+    
+    # Paper Archiving 
+    if any(paper in message.content for paper in archiving.PaperSource):
+        await archiving.archive_paper(message)
+    
     await bot.process_commands(message)
 
 
@@ -283,7 +348,6 @@ async def on_command_error(context: Context, error) -> None:
         await context.send(embed=embed)
     else:
         raise error
-
 
 async def load_cogs() -> None:
     """

@@ -6,8 +6,8 @@ Description:
 Version: 5.5.0
 """
 
+# mongo db로 수정?
 import os
-
 import aiosqlite
 
 DATABASE_PATH = f"{os.path.realpath(os.path.dirname(__file__))}/../database/database.db"
@@ -21,9 +21,7 @@ async def get_blacklisted_users() -> list:
     :return: True if the user is blacklisted, False if not.
     """
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        async with db.execute(
-            "SELECT user_id, strftime('%s', created_at) FROM blacklist"
-        ) as cursor:
+        async with db.execute("SELECT user_id, strftime('%s', created_at) FROM blacklist") as cursor:
             result = await cursor.fetchall()
             return result
 
@@ -157,3 +155,243 @@ async def get_warnings(user_id: int, server_id: int) -> list:
             for row in result:
                 result_list.append(row)
             return result_list
+
+async def add_discord_channel_info(channel_name: str, channel_id: int) -> None:
+    """
+    This function will add a evry chat log to the database.
+    """
+    # DB 내 동일 정보 확인 필요 
+    # Fetch DB
+    
+    # IF not in DB
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        rows = await db.execute(
+            "SELECT channel_name, channel_id \
+                FROM channel_list WHERE channel_id=?",
+            ( 
+                channel_id, 
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+        if not len(result):
+            await db.execute(
+                "INSERT INTO channel_list(channel_name, channel_id) \
+                    VALUES (?, ?)",
+                (
+                    channel_name,
+                    channel_id
+                ),
+            )
+            await db.commit()
+        else:
+            await db.execute(
+                "UPDATE channel_list \
+                    SET channel_name= ? \
+                        WHERE channel_id=?",
+                (
+                    channel_name,
+                    channel_id
+                ),
+            ) 
+            await db.commit()
+        return 
+
+async def add_log(channel_name: str, channel_id: int, message_author: str, message_author_id: int, message_content: str) -> None:
+    """
+    This function will add a evry chat log to the database.
+    """
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "INSERT INTO log(channel_name, channel_id, message_author, message_author_id, message_content) \
+                VALUES (?, ?, ?, ?, ?)",
+            (
+                channel_name,
+                channel_id,
+                message_author,
+                message_author_id,
+                message_content,
+            ),
+        )
+        await db.commit()
+        return 
+
+async def add_github(channel_name: str, channel_id: int, message_author: str, message_author_id: int, 
+                        github_username: str, repository_name: str, description: str) -> None:
+    """
+    This function will add a evry chat log to the database.
+    """
+    # DB 내 동일 정보 확인 필요 
+    # Fetch DB
+    
+    # IF not in DB
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        rows = await db.execute(
+            "SELECT channel_name, channel_id, message_author, message_author_id, github_username, repository_name, description \
+                FROM github WHERE github_username=? AND repository_name=?",
+            (
+                github_username, 
+                repository_name, 
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+        if not len(result):
+            await db.execute(
+                "INSERT INTO github(channel_name, channel_id, message_author, message_author_id, github_username, repository_name, description) \
+                    VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    channel_name,
+                    channel_id,
+                    message_author,
+                    message_author_id,
+                    github_username, 
+                    repository_name,
+                    description
+                ),
+            )
+            await db.commit()
+        return 
+
+async def add_paper(channel_name: str, channel_id: int, message_author: str, message_author_id: int, 
+                        source: str, title: str, authors: str, url: str, conference: str, year: str) -> None:
+    """
+    This function will add a evry chat log to the database.
+    """
+    # DB 내 동일 정보 확인 필요 
+    # Fetch DB
+    
+    # IF not in DB
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        rows = await db.execute(
+            "SELECT channel_name, channel_id, message_author, message_author_id, source, title, authors, url, conference, year \
+                FROM paper WHERE title=? AND authors=?",
+            (
+                title, 
+                authors, 
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+        if not len(result):
+            await db.execute(
+                "INSERT INTO paper(channel_name, channel_id, message_author, message_author_id, source, title, authors, url, conference, year) \
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    channel_name,
+                    channel_id,
+                    message_author,
+                    message_author_id,
+                    source, 
+                    title,
+                    authors,
+                    url,
+                    conference,
+                    year
+                ),
+            )
+            await db.commit()
+        return 
+
+async def get_youtube_channel_info() -> list:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute("SELECT channel_name, rss_link FROM youtube_channel") as cursor:
+            result = await cursor.fetchall()
+            return result
+
+async def add_youtube_channel_info(channel_name: str, rss_link: str) -> None:
+    """
+    This function will add a evry chat log to the database.
+    """
+    # DB 내 동일 정보 확인 필요 
+    # Fetch DB
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        rows = await db.execute(
+            "SELECT channel_name, rss_link \
+                FROM youtube_channel WHERE channel_name=?",
+            (
+                channel_name, 
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+        if not len(result):
+            await db.execute(
+                "INSERT INTO youtube_channel(channel_name, rss_link) \
+                    VALUES (?, ?)",
+                (
+                    channel_name,
+                    rss_link
+                ),
+            )
+            await db.commit()
+        return
+
+async def add_youtube_video(channel_name: str, video_id: int, video_link: str, published: str) -> None:
+    # DB 내 동일 정보 확인 필요 
+    # Fetch DB
+    
+    # IF not in DB
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        rows = await db.execute(
+            "SELECT channel_name, video_id, video_link, published, send \
+                FROM youtube_video WHERE channel_name=? AND video_id=? AND video_link=?",
+            (
+                channel_name, 
+                video_id, 
+                video_link,
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+        if not len(result):
+            await db.execute(
+                "INSERT INTO youtube_video(channel_name, video_id, video_link, published, send) \
+                    VALUES (?, ?, ?, ?, ?)",
+                (
+                    channel_name,
+                    video_id,
+                    video_link,
+                    published,
+                    False
+                ),
+            )
+            await db.commit()
+        return 
+
+async def get_youtube_video():
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        rows = await db.execute(
+            "SELECT channel_name, video_id, video_link \
+                FROM youtube_video \
+                    WHERE send=0"
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+            return result
+async def update_youtube_video(channel_name: str, video_id: int, video_link: str) -> None:
+    # DB 내 동일 정보 확인 필요 
+    # Fetch DB
+    
+    # IF not in DB
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE youtube_video \
+                SET send= True \
+                    WHERE channel_name=? AND video_id=? AND video_link=?",
+            (
+                channel_name,
+                video_id,
+                video_link
+            ),
+        ) 
+        await db.commit()
+        return 
+
+if __name__ == "__main__":
+    import asyncio
+    rows = asyncio.run(get_youtube_video())
+    for row in rows[:-2]:
+        print(row[0], row[1], row[2])
+        asyncio.run(update_youtube_video(row[0], row[1], row[2]))

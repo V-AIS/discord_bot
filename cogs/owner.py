@@ -5,7 +5,7 @@ Description:
 
 Version: 5.5.0
 """
-
+import typing
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -18,10 +18,7 @@ class Owner(commands.Cog, name="owner"):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(
-        name="sync",
-        description="Synchonizes the slash commands.",
-    )
+    @commands.hybrid_command(name="sync", description="Synchonizes the slash commands.",)
     @app_commands.describe(scope="The scope of the sync. Can be `global` or `guild`")
     @checks.is_owner()
     async def sync(self, context: Context, scope: str) -> None:
@@ -54,13 +51,8 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
 
-    @commands.command(
-        name="unsync",
-        description="Unsynchonizes the slash commands.",
-    )
-    @app_commands.describe(
-        scope="The scope of the sync. Can be `global`, `current_guild` or `guild`"
-    )
+    @commands.hybrid_command(name="unsync", description="Unsynchonizes the slash commands.",)
+    @app_commands.describe(scope="The scope of the sync. Can be `global`, `current_guild` or `guild`")
     @checks.is_owner()
     async def unsync(self, context: Context, scope: str) -> None:
         """
@@ -93,10 +85,7 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="load",
-        description="Load a cog",
-    )
+    @commands.hybrid_command(name="load",description="Load a cog",)
     @app_commands.describe(cog="The name of the cog to load")
     @checks.is_owner()
     async def load(self, context: Context, cog: str) -> None:
@@ -119,10 +108,7 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="unload",
-        description="Unloads a cog.",
-    )
+    @commands.hybrid_command(name="unload",description="Unloads a cog.",)
     @app_commands.describe(cog="The name of the cog to unload")
     @checks.is_owner()
     async def unload(self, context: Context, cog: str) -> None:
@@ -145,10 +131,7 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="reload",
-        description="Reloads a cog.",
-    )
+    @commands.hybrid_command(name="reload",description="Reloads a cog.",)
     @app_commands.describe(cog="The name of the cog to reload")
     @checks.is_owner()
     async def reload(self, context: Context, cog: str) -> None:
@@ -160,9 +143,9 @@ class Owner(commands.Cog, name="owner"):
         """
         try:
             await self.bot.reload_extension(f"cogs.{cog}")
-        except Exception:
+        except Exception as e:
             embed = discord.Embed(
-                description=f"Could not reload the `{cog}` cog.", color=0xE02B2B
+                description=f"Could not reload the `{cog}` cog. \n\n{e}", color=0xE02B2B
             )
             await context.send(embed=embed)
             return
@@ -171,10 +154,7 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="shutdown",
-        description="Make the bot shutdown.",
-    )
+    @commands.hybrid_command(name="shutdown",description="Make the bot shutdown.",)
     @checks.is_owner()
     async def shutdown(self, context: Context) -> None:
         """
@@ -186,10 +166,7 @@ class Owner(commands.Cog, name="owner"):
         await context.send(embed=embed)
         await self.bot.close()
 
-    @commands.hybrid_command(
-        name="say",
-        description="The bot will say anything you want.",
-    )
+    @commands.hybrid_command(name="say",description="The bot will say anything you want.",)
     @app_commands.describe(message="The message that should be repeated by the bot")
     @checks.is_owner()
     async def say(self, context: Context, *, message: str) -> None:
@@ -201,10 +178,7 @@ class Owner(commands.Cog, name="owner"):
         """
         await context.send(message)
 
-    @commands.hybrid_command(
-        name="embed",
-        description="The bot will say anything you want, but within embeds.",
-    )
+    @commands.hybrid_command(name="embed",description="The bot will say anything you want, but within embeds.",)
     @app_commands.describe(message="The message that should be repeated by the bot")
     @checks.is_owner()
     async def embed(self, context: Context, *, message: str) -> None:
@@ -217,10 +191,7 @@ class Owner(commands.Cog, name="owner"):
         embed = discord.Embed(description=message, color=0x9C84EF)
         await context.send(embed=embed)
 
-    @commands.hybrid_group(
-        name="blacklist",
-        description="Get the list of all blacklisted users.",
-    )
+    @commands.hybrid_group(name="blacklist",description="Get the list of all blacklisted users.",)
     @checks.is_owner()
     async def blacklist(self, context: Context) -> None:
         """
@@ -235,11 +206,7 @@ class Owner(commands.Cog, name="owner"):
             )
             await context.send(embed=embed)
 
-    @blacklist.command(
-        base="blacklist",
-        name="show",
-        description="Shows the list of all blacklisted users.",
-    )
+    @blacklist.command(base="blacklist",name="show",description="Shows the list of all blacklisted users.",)
     @checks.is_owner()
     async def blacklist_show(self, context: Context) -> None:
         """
@@ -265,11 +232,7 @@ class Owner(commands.Cog, name="owner"):
         embed.description = "\n".join(users)
         await context.send(embed=embed)
 
-    @blacklist.command(
-        base="blacklist",
-        name="add",
-        description="Lets you add a user from not being able to use the bot.",
-    )
+    @blacklist.command(base="blacklist",name="add",description="Lets you add a user from not being able to use the bot.",)
     @app_commands.describe(user="The user that should be added to the blacklist")
     @checks.is_owner()
     async def blacklist_add(self, context: Context, user: discord.User) -> None:
@@ -297,11 +260,7 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
 
-    @blacklist.command(
-        base="blacklist",
-        name="remove",
-        description="Lets you remove a user from not being able to use the bot.",
-    )
+    @blacklist.command(base="blacklist",name="remove",description="Lets you remove a user from not being able to use the bot.",)
     @app_commands.describe(user="The user that should be removed from the blacklist.")
     @checks.is_owner()
     async def blacklist_remove(self, context: Context, user: discord.User) -> None:
@@ -328,6 +287,23 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
 
-
+    # @commands.hybrid_command(name="test", description="test",)
+    # @checks.is_owner()
+    # @app_commands.describe(task="중 하나를 적어주세요")
+    # async def test(self, context: Context, *,task: typing.Literal["논문", "깃헙"]) -> None:
+    #     embed = discord.Embed(
+    #         title="입력 값",
+    #         description=f"{task}",
+    #         color=0x9C84EF,
+    #     )
+    #     # embed.set_footer(text=f"{subject}{channel}{teller}")
+    #     await context.send(embed=embed)
+    
+    @commands.hybrid_command(name="test", description="test",)
+    async def test(self, context: Context,) -> None:
+        
+        embed = discord.Embed(title="test", description=context.author.roles)
+        await context.send(embed = embed)
+                
 async def setup(bot):
     await bot.add_cog(Owner(bot))
