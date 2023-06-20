@@ -219,6 +219,19 @@ class General(commands.Cog, name="general"):
             color=0x9C84EF,
         )
         await context.send(embed=embed)
+    @commands.hybrid_command(name="음악봇", description="음악 봇 사용방법을 알려드립니다!")
+    @checks.not_blacklisted()
+    async def music_bot_info(self, context: Context) -> None:
+        embed = discord.Embed(
+            title=f"음악 봇 사용방법",
+            color=0x9C84EF,
+        )
+        embed.add_field(name="Ayana (https://ayana.io)", value="명령어: https://ayana.io/docs/commands\n채팅창에 /music play 를 입력하시면 안내가 나옵니다!", inline=False)
+        embed.add_field(name="", value="", inline=False)
+        embed.add_field(name="Mirai (https://mirai.brussell.me)", value="명령어: https://mirai.brussell.me/commands\n1. mm.join 을 입력해서 Mirai를 음성 채널에 참가시켜주세요!\n2. mm.play {youtube URL} 을 하시면 재생됩니다!\n3. mm.queue {youtube URL} 을 하시면 재생 목록이 추가됩니다!", inline=False)
+        embed.add_field(name="", value="", inline=False)
+        embed.add_field(name="Vexera (https://vexera.io)", value="명령어: https://vexera.io/commands\n1. +play {youtube URL} 하시면 Vexera가 음성 채널 참가되고 음악을 재생합니다!\n2. +play-next {youtube URL} 를 하시면 대기열에 추가할 수 있어요!", inline=False)
+        await context.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(General(bot))

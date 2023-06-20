@@ -25,6 +25,7 @@ class Search(commands.Cog, name="search"):
             )
         await context.send(f"**검색 키워드**: {keyword}")
         
+        embeds = []
         for paper in papers.results():
             embed = discord.Embed(
                 title=f"{paper.title}",
@@ -34,8 +35,8 @@ class Search(commands.Cog, name="search"):
             embed.add_field(name="Caterogies", value=', '.join(paper.categories), inline=False)    
             embed.add_field(name="Date", value=paper.published, inline=False)    
             embed.add_field(name="Paper Link", value=paper.entry_id, inline=False)
-        
-            await context.send(embed=embed)
+            embeds.append(embed)
+        await context.send(embeds=embeds)
 
     @commands.hybrid_command(name="db검색", description="DB검색",)
     @checks.not_blacklisted()
