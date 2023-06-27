@@ -220,9 +220,12 @@ async def tldr_feed():
         for field in feeds:
             await channel.send(f"# Daily TLDR {field.upper()} ({date})\n")
             for subject in feeds[field]:
+                max_length = int(1024/len(feeds[field][subject]))
                 embed = discord.Embed(title=subject)
                 for title in feeds[field][subject]:
-                    value =  f"{feeds[field][subject][title]['link']}\n{feeds[field][subject][title]['content']}\n\n"
+                    value =  f"{feeds[field][subject][title]['link']}\n{feeds[field][subject][title]['content'][:]}\n\n"
+                    if len(value) > max_length:
+                        value = value[:max_length-3] + "..."
                     embed.add_field(name=title, value=value, inline=False)
                 await channel.send(embed=embed)
 
