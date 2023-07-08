@@ -71,8 +71,3 @@ class TLDRFeed():
 def get_investing_finance_news():
     feed = feedparser.parse("https://kr.investing.com/rss/news_285.rss")
     return feed.entries
-    
-if __name__ == "__main__":
-    test = TLDRFeed()
-    print(test.get_feed("2023-05-23"))
-    
