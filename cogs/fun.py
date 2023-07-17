@@ -8,6 +8,7 @@ Version: 5.5.0
 
 import random
 
+import asyncio
 import aiohttp
 import discord
 from discord import app_commands
@@ -22,16 +23,16 @@ class Choice(discord.ui.View):
         super().__init__()
         self.value = None
 
-    @discord.ui.button(label="Heads", style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label="앞", style=discord.ButtonStyle.blurple)
     async def confirm(
         self, button: discord.ui.Button, interaction: discord.Interaction
     ):
-        self.value = "heads"
+        self.value = "앞"
         self.stop()
 
-    @discord.ui.button(label="Tails", style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label="뒤", style=discord.ButtonStyle.blurple)
     async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
-        self.value = "tails"
+        self.value = "뒤"
         self.stop()
 
 
@@ -39,17 +40,17 @@ class RockPaperScissors(discord.ui.Select):
     def __init__(self):
         options = [
             discord.SelectOption(
-                label="Scissors", description="You choose scissors.", emoji="✂"
+                label="가위", description="가위를 선택", emoji="✂"
             ),
             discord.SelectOption(
-                label="Rock", description="You choose rock.", emoji="🪨"
+                label="바위", description="바위를 선택", emoji="🪨"
             ),
             discord.SelectOption(
-                label="paper", description="You choose paper.", emoji="🧻"
+                label="보", description="보를 선택", emoji="🧻"
             ),
         ]
         super().__init__(
-            placeholder="Choose...",
+            placeholder="선택의....순간....",
             min_values=1,
             max_values=1,
             options=options,
@@ -57,9 +58,9 @@ class RockPaperScissors(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         choices = {
-            "rock": 0,
-            "paper": 1,
-            "scissors": 2,
+            "바위": 0,
+            "가위": 1,
+            "보": 2,
         }
         user_choice = self.values[0].lower()
         user_choice_index = choices[user_choice]
@@ -73,20 +74,24 @@ class RockPaperScissors(discord.ui.Select):
         )
 
         if user_choice_index == bot_choice_index:
-            result_embed.description = f"**That's a draw!**\nYou've chosen {user_choice} and I've chosen {bot_choice}."
+            result_embed.description = f"**비겼습니다!**\n 둘 다 {user_choice}를 냈습니다!"
             result_embed.colour = 0xF59E42
-        elif user_choice_index == 0 and bot_choice_index == 2:
-            result_embed.description = f"**You won!**\nYou've chosen {user_choice} and I've chosen {bot_choice}."
+        
+        elif user_choice_index == 0 and bot_choice_index == 1:
+            result_embed.description = f"**이겼습니다!!**\n 당신의 {user_choice}가 저의 {bot_choice}."
             result_embed.colour = 0x9C84EF
-        elif user_choice_index == 1 and bot_choice_index == 0:
-            result_embed.description = f"**You won!**\nYou've chosen {user_choice} and I've chosen {bot_choice}."
+        
+        elif user_choice_index == 1 and bot_choice_index == 2:
+            result_embed.description = f"**이겼습니다!!**\n 당신의 {user_choice}가 저의 {bot_choice}."
             result_embed.colour = 0x9C84EF
-        elif user_choice_index == 2 and bot_choice_index == 1:
-            result_embed.description = f"**You won!**\nYou've chosen {user_choice} and I've chosen {bot_choice}."
+        
+        elif user_choice_index == 2 and bot_choice_index == 0:
+            result_embed.description = f"**이겼습니다!!**\n 당신의 {user_choice}가 저의 {bot_choice}."
             result_embed.colour = 0x9C84EF
+        
         else:
             result_embed.description = (
-                f"**I won!**\nYou've chosen {user_choice} and I've chosen {bot_choice}."
+                f"**졌습니다...**\n {user_choice}는..... {bot_choice} 를 이길 수 없어요."
             )
             result_embed.colour = 0xE02B2B
         await interaction.response.edit_message(
@@ -104,7 +109,7 @@ class Fun(commands.Cog, name="fun"):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="randomfact", description="Get a random fact.")
+    @commands.hybrid_command(name="주저리주저리", description="아무 실화..를 출력합니다.")
     @app_commands.guilds(discord.Object(id=1082978815334170684)) # Place your guild ID here
     @checks.not_blacklisted()
     async def randomfact(self, context: Context) -> None:
@@ -129,9 +134,7 @@ class Fun(commands.Cog, name="fun"):
                     )
                 await context.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="coinflip", description="Make a coin flip, but give your bet before."
-    )
+    @commands.hybrid_command(name="코인토스", description="앞? 뒤? 맞춰보세요!")
     @checks.not_blacklisted()
     async def coinflip(self, context: Context) -> None:
         """
@@ -140,25 +143,23 @@ class Fun(commands.Cog, name="fun"):
         :param context: The hybrid command context.
         """
         buttons = Choice()
-        embed = discord.Embed(description="What is your bet?", color=0x9C84EF)
+        embed = discord.Embed(description="어디에 걸어볼텐가....?", color=0x9C84EF)
         message = await context.send(embed=embed, view=buttons)
         await buttons.wait()  # We wait for the user to click a button.
-        result = random.choice(["heads", "tails"])
+        result = random.choice(["앞", "뒤"])
         if buttons.value == result:
             embed = discord.Embed(
-                description=f"Correct! You guessed `{buttons.value}` and I flipped the coin to `{result}`.",
+                description=f"오올!! 도박에 성공했어요!!",
                 color=0x9C84EF,
             )
         else:
             embed = discord.Embed(
-                description=f"Woops! You guessed `{buttons.value}` and I flipped the coin to `{result}`, better luck next time!",
+                description=f"땡!! 도박하지마셈. 국번없이 1336.",
                 color=0xE02B2B,
             )
         await message.edit(embed=embed, view=None, content=None)
 
-    @commands.hybrid_command(
-        name="rps", description="Play the rock paper scissors game against the bot."
-    )
+    @commands.hybrid_command(name="가위바위보", description="자...가위바위보를 시작하지...")
     @checks.not_blacklisted()
     async def rock_paper_scissors(self, context: Context) -> None:
         """
@@ -167,8 +168,18 @@ class Fun(commands.Cog, name="fun"):
         :param context: The hybrid command context.
         """
         view = RockPaperScissorsView()
-        await context.send("Please make your choice", view=view)
+        await context.send("게임 시작!", view=view)
 
+    @commands.hybrid_command(name="칼로생성", description="Karlo를 이용해서 이미지를 생성합니다")
+    @checks.not_blacklisted()
+    @app_commands.describe(prompt="입력 할 프롬프트(영어로!!!)", negative_prompt="영어로!!!")
+    async def karlo_generation(self, context: Context, *, prompt: str, negative_prompt: str=""):
+        await context.defer()
+        response = self.bot.karlo.t2i(prompt, negative_prompt)
+        embed = discord.Embed(title="칼로 생성 결과", description=f"prompt: {prompt}\nnegative prompt: {negative_prompt}")
+        embed.set_image(url=response.get("images")[0].get("image"))
+        await asyncio.sleep(delay=0)
+        await context.reply(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Fun(bot))
