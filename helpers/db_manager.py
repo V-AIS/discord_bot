@@ -328,6 +328,18 @@ async def add_youtube_channel_info(channel_name: str, rss_link: str) -> None:
             await db.commit()
         return
 
+async def del_youtube_channel_info(channel_name: str) -> None:
+    """
+    This function will add a evry chat log to the database.
+    """
+    # DB 내 동일 정보 확인 필요 
+    # Fetch DB
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("DELETE FROM youtube_channel WHERE channel_name=?", (channel_name,))
+        await db.commit()
+        return
+
 async def add_youtube_video(channel_name: str, video_id: int, video_link: str, published: str) -> None:
     # DB 내 동일 정보 확인 필요 
     # Fetch DB
@@ -370,6 +382,7 @@ async def get_youtube_video():
         async with rows as cursor:
             result = await cursor.fetchall()
             return result
+
 async def update_youtube_video(channel_name: str, video_id: int, video_link: str) -> None:
     # DB 내 동일 정보 확인 필요 
     # Fetch DB
@@ -391,7 +404,5 @@ async def update_youtube_video(channel_name: str, video_id: int, video_link: str
 
 if __name__ == "__main__":
     import asyncio
-    rows = asyncio.run(get_youtube_video())
-    for row in rows[:-2]:
-        print(row[0], row[1], row[2])
-        asyncio.run(update_youtube_video(row[0], row[1], row[2]))
+
+    asyncio.run(add_youtube_channel_info())

@@ -30,13 +30,16 @@ class YoutubeFeed():
         res = requests.get(url)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
-            db_manager.add_youtube_channel_info(channel_name, soup.find('link', {'title': 'RSS'})['href'])
+            await db_manager.add_youtube_channel_info(channel_name, soup.find('link', {'title': 'RSS'})['href'])
             result = "Channel information added"
         else:
             # 채널명을 잘못 입력했을 시 에러 발생 필요
             result = "Check channel name"
         return  result
 
+    async def del_channel_rss_url(self, channel_name) -> str:
+        await db_manager.del_youtube_channel_info(channel_name)
+        
 class TLDRFeed():
     def __init__(self):
         self.root_url = "https://tldr.tech"

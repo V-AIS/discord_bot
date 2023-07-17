@@ -286,24 +286,27 @@ class Owner(commands.Cog, name="owner"):
             text=f"There {'is' if total == 1 else 'are'} now {total} {'user' if total == 1 else 'users'} in the blacklist"
         )
         await context.send(embed=embed)
-
-    # @commands.hybrid_command(name="test", description="test",)
-    # @checks.is_owner()
-    # @app_commands.describe(task="중 하나를 적어주세요")
-    # async def test(self, context: Context, *,task: typing.Literal["논문", "깃헙"]) -> None:
-    #     embed = discord.Embed(
-    #         title="입력 값",
-    #         description=f"{task}",
-    #         color=0x9C84EF,
-    #     )
-    #     # embed.set_footer(text=f"{subject}{channel}{teller}")
-    #     await context.send(embed=embed)
     
-    @commands.hybrid_command(name="test", description="test",)
-    async def test(self, context: Context,) -> None:
+    @commands.hybrid_command(name="channel_reset", description="채널 초기화")
+    @checks.is_owner()
+    async def channel_reset(self, context: Context) -> None:
+        await context.channel.delete()
+        new_channel = await context.channel.clone(reason="Channel was purged")
+        await new_channel.edit(position=context.channel.position)
+    
+    @commands.hybrid_command(name="subscribe_youtube_channel", description="유튜브 구독")
+    @checks.is_owner()
+    @app_commands.describe(channel_name="유튜브 채널 핸들아이디")
+    async def subscribe_youtube_channel(self, context: Context, channel_name: str) -> None:
+        await self.bot.youtube.add_channel_rss_url(channel_name)
+        await context.send(f"**채널 구독 완료**: {channel_name}")
         
-        embed = discord.Embed(title="test", description=context.author.roles)
-        await context.send(embed = embed)
+    @commands.hybrid_command(name="unsubscribe_youtube_channel", description="유튜브 구독 취소")
+    @checks.is_owner()
+    @app_commands.describe(channel_name="유튜브 채널 핸들아이디")
+    async def unsubscribe_youtube_channel(self, context: Context, channel_name: str) -> None:
+        await self.bot.youtube.del_channel_rss_url(channel_name)
+        await context.send(f"**채널 구독 해지**: {channel_name}")
                 
 async def setup(bot):
     await bot.add_cog(Owner(bot))
