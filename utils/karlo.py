@@ -11,6 +11,7 @@ class karlo_agent:
             json = {
                 'prompt': prompt,
                 'negative_prompt': negative_prompt,
+                'guidance_scale': 10.0,
                 'nsfw_checker': True
             },
             headers = {
