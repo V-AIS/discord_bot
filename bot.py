@@ -7,6 +7,7 @@ Version: 5.5.0
 """
 
 import asyncio
+import traceback
 import json
 import logging
 import os
@@ -159,7 +160,7 @@ bot.config = config
 bot.youtube = utils.YoutubeFeed(logger)
 bot.tldr = utils.TLDRFeed()
 bot.discourse = utils.ToDiscourse(bot.config)
-bot.karlo = utils.karlo_agent(bot.config)
+bot.kakao = utils.kakao_agent(bot.config)
 
 @bot.event
 async def on_ready() -> None:
@@ -195,42 +196,54 @@ async def news_feed():
     now = datetime.now()
     channel = bot.get_channel(1082998215814688829)
     if now.strftime("%H:%M:%S") == "09:00:00":
-        feeds = utils.get_investing_finance_news()
-        title = f"{now.strftime('%Y-%m-%d')} Stock Market News (Investing)"
-        embed = discord.Embed(title=f"{title}")
-        for news in feeds:
-            embed.add_field(name=news.title, value=news.link, inline=False)
-        await channel.send(embed=embed)
-
+        bot.logger.info("Stock Market News Feed")
+        try:
+            feeds = utils.get_investing_finance_news()
+            title = f"{now.strftime('%Y-%m-%d')} Stock Market News (Investing)"
+            embed = discord.Embed(title=f"{title}")
+            for news in feeds:
+                embed.add_field(name=news.title, value=news.link, inline=False)
+            await channel.send(embed=embed)
+        except Exception as e:
+            bot.logger.error(str(traceback.format_exc()))
+        
 @tasks.loop(minutes=2.5)
 async def youtube_feed():
-    channel = bot.get_channel(1105872936776245349)
-    await bot.youtube.get_new_video()
-    rows = await helpers.db_manager.get_youtube_video()
-    for row in rows:
-        await channel.send(row[2])
-        await helpers.db_manager.update_youtube_video(row[0], row[1], row[2])
-    
+    bot.logger.info("Youtube FeedFeed")
+    try:
+        channel = bot.get_channel(1105872936776245349)
+        await bot.youtube.get_new_video()
+        rows = await helpers.db_manager.get_youtube_video()
+        for row in rows:
+            await channel.send(row[2])
+            await helpers.db_manager.update_youtube_video(row[0], row[1], row[2])
+    except Exception as e:
+        bot.logger.error(str(traceback.format_exc()))
+        
 @tasks.loop(seconds=1)
 async def tldr_feed():
     now = datetime.now()
     channel = bot.get_channel(1110112301106860052)
     if now.strftime("%H:%M:%S") == "09:00:00":
-        date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-        feeds = await bot.tldr.get_feed(date)
-        for field in feeds:
-            await channel.send(f"# Daily TLDR {field.upper()} ({date})\n")
-            for subject in feeds[field]:
-                if subject == "TLDR": continue
-                divider = len(feeds[field][subject]) if len(feeds[field][subject]) else 1
-                max_length = int(1024/divider)
-                embed = discord.Embed(title=subject)
-                for title in feeds[field][subject]:
-                    value =  f"{feeds[field][subject][title]['link']}\n{feeds[field][subject][title]['content'][:]}\n\n"
-                    if len(value) > max_length:
-                        value = value[:max_length-3] + "..."
-                    embed.add_field(name=title, value=value, inline=False)
-                await channel.send(embed=embed)
+        bot.logger.info("TLDR Feed")
+        try:    
+            date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+            feeds = await bot.tldr.get_feed(date)
+            for field in feeds:
+                await channel.send(f"# Daily TLDR {field.upper()} ({date})\n")
+                for subject in feeds[field]:
+                    if subject == "TLDR": continue
+                    divider = len(feeds[field][subject]) if len(feeds[field][subject]) else 1
+                    max_length = int(1024/divider)
+                    embed = discord.Embed(title=subject)
+                    for title in feeds[field][subject]:
+                        value =  f"{feeds[field][subject][title]['link']}\n{feeds[field][subject][title]['content'][:]}\n\n"
+                        if len(value) > max_length:
+                            value = value[:max_length-3] + "..."
+                        embed.add_field(name=title, value=value, inline=False)
+                    await channel.send(embed=embed)
+        except Exception as e:
+            bot.logger.error(str(traceback.format_exc()))
 
 @bot.event
 async def on_message(message: discord.Message) -> None:
@@ -353,6 +366,11 @@ async def on_command_error(context: Context, error) -> None:
         )
         await context.send(embed=embed)
     else:
+        embed = discord.Embed(
+            title="Error!",
+            color=0xE02B2B,
+        )
+        await context.send(embed)
         raise error
 
 async def load_cogs() -> None:
