@@ -17,6 +17,10 @@ from discord.ext.commands import Context
 
 from helpers import checks
 
+# For Kalro
+import os
+import urllib
+from PIL import Image
 
 class Choice(discord.ui.View):
     def __init__(self):
@@ -174,12 +178,20 @@ class Fun(commands.Cog, name="fun"):
     @checks.not_blacklisted()
     @app_commands.describe(prompt="입력 할 프롬프트(영어로!!!)", negative_prompt="영어로!!!")
     async def karlo_generation(self, context: Context, *, prompt: str, negative_prompt: str=""):
-        await context.defer()
-        response = self.bot.karlo.t2i(prompt, negative_prompt)
-        embed = discord.Embed(title="칼로 생성 결과", description=f"prompt: {prompt}\nnegative prompt: {negative_prompt}")
-        embed.set_image(url=response.get("images")[0].get("image"))
-        await asyncio.sleep(delay=0)
-        await context.reply(embed=embed)
-
+        try:
+            await context.defer()
+            response = self.bot.kakao.karlo_t2i(prompt, negative_prompt)
+            embed = discord.Embed(title="칼로 생성 결과", description=f"prompt: {prompt}\nnegative prompt: {negative_prompt}")
+            # embed.set_image(url=response.get("images")[0].get("image"))
+            # await asyncio.sleep(delay=0)
+            # await context.reply(embed=embed)
+            Image.open(urllib.request.urlopen(response.get("images")[0].get("image"))).save("tmp.jpg")
+            file = discord.File("tmp.jpg", filename="tmp.jpg")
+            embed.set_image(url="attachment://tmp.jpg")
+            await asyncio.sleep(delay=0)
+            await context.reply(file=file, embed=embed)
+            os.remove("tmp.jpg")
+        except:
+            await context.reply("에러가 발생했습니다.")
 async def setup(bot):
     await bot.add_cog(Fun(bot))

@@ -1,3 +1,3 @@
 from .discourse import *
 from .rss import *
-from .karlo import *
+from .kakao import *
