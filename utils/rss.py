@@ -43,7 +43,7 @@ class YoutubeFeed():
 class TLDRFeed():
     def __init__(self):
         self.root_url = "https://tldr.tech"
-        self.categories = ["tech", "ai"]
+        self.categories = ["tech"]
 
     async def get_feed(self, date):
         contents = {}
