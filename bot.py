@@ -224,8 +224,9 @@ async def youtube_feed():
 @tasks.loop(seconds=1)
 async def tldr_feed():
     now = datetime.now()
+    weekday = now.weekday()
     channel = bot.get_channel(1110112301106860052)
-    if now.strftime("%H:%M:%S") == "10:00:00":
+    if weekday not in [0, 6] and now.strftime("%H:%M:%S") == "10:00:00":
         bot.logger.info("TLDR Feed")
         try:    
             date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
