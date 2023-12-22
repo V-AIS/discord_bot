@@ -209,11 +209,12 @@ async def news_feed():
         
 @tasks.loop(minutes=2.5)
 async def youtube_feed():
-    bot.logger.info("Youtube FeedFeed")
+    channel = bot.get_channel(1105872936776245349)
     try:
-        channel = bot.get_channel(1105872936776245349)
         await bot.youtube.get_new_video()
         rows = await helpers.db_manager.get_youtube_video()
+        if len(rows):
+            bot.logger.info("Youtube FeedFeed")
         for row in rows:
             await channel.send(row[2])
             await helpers.db_manager.update_youtube_video(row[0], row[1], row[2])
@@ -223,8 +224,9 @@ async def youtube_feed():
 @tasks.loop(seconds=1)
 async def tldr_feed():
     now = datetime.now()
+    weekday = now.weekday()
     channel = bot.get_channel(1110112301106860052)
-    if now.strftime("%H:%M:%S") == "09:00:00":
+    if weekday not in [0, 6] and now.strftime("%H:%M:%S") == "10:00:00":
         bot.logger.info("TLDR Feed")
         try:    
             date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
