@@ -19,7 +19,7 @@ class Market(commands.Cog, name="market"):
     def __init__(self, bot):
         self.bot = bot
         self.header = {
-                "Authorization": f"Bearer {self.bot.config['tokens']['notion']['key']}", 
+                "Authorization": f"Bearer {self.bot.config['TOKENS']['NOTION']['KEY']}", 
                 "Notion-Version": "2021-08-16",
                 "Content-Type":"application/json"
                 }
@@ -27,7 +27,7 @@ class Market(commands.Cog, name="market"):
     @commands.hybrid_command(name="중고마켓", description="V-AIS 중고 마켓에 대한 설명입니다")
     @checks.not_blacklisted()
     async def help(self, context: Context) -> None:
-        prefix = self.bot.config["prefix"]
+        prefix = self.bot.config["PREFIX"]
         embed = discord.Embed(
             title="중고 마켓", description="물품을 사고 팔고 나눌 수 있어요!", color=0x9C84EF
         )
@@ -50,7 +50,7 @@ class Market(commands.Cog, name="market"):
         
         readurl = f"https://api.notion.com/v1/pages/"
         new_page_data = {
-                        'parent': {'database_id': self.bot.config['tokens']['notion']['market_table_id'],
+                        'parent': {'database_id': self.bot.config['TOKENS']['NOTION']['MARKET_TABLE_ID'],
                         'type': 'database_id'},
                         'properties': {
                             '가격': {'id': 'nSGB', 
@@ -109,7 +109,7 @@ class Market(commands.Cog, name="market"):
     @checks.not_blacklisted()
     @app_commands.describe(kind="무엇을 하셨나요?(구매/판매/나눔)", product="무엇을 구매하시나요?")
     async def marker_complete(self, context: Context, *, kind: str, product: str) -> None:
-        query_url = f"https://api.notion.com/v1/databases/{self.bot.config['tokens']['notion']['market_table_id']}/query"
+        query_url = f"https://api.notion.com/v1/databases/{self.bot.config['TOKENS']['NOTION']['MARKET_TABLE_ID']}/query"
         filter = {
             "filter": {
                 "and": [

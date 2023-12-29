@@ -1,11 +1,29 @@
 {
-  "prefix": "YOUR_BOT_PREFIX_HERE",
-  "token": "YOUR_BOT_TOKEN_HERE",
-  "permissions": "YOUR_BOT_PERMISSIONS_HERE",
-  "application_id": "YOUR_APPLICATION_ID_HERE",
-  "sync_commands_globally": false,
-  "owners": [
+  "PREFIX": "YOUR_BOT_PREFIX_HERE",
+  "TOKEN": "YOUR_BOT_TOKEN_HERE",
+  "PERMISSION": "YOUR_BOT_PERMISSIONS_HERE",
+  "APPLICATION_ID": "YOUR_APPLICATION_ID_HERE",
+  "SYNC_COMMANDS_GLOBALLY": false,
+  "OWNERS": [
     123456789,
     987654321
-  ]
+  ],
+  "FEED_CHANNEL": {
+    "NEWS": 1127965924780167248,
+    "YOUTUBE": 1127965924780167248,
+    "TLDR": 1127965924780167248
+  },
+  "TOKENS": {
+    "DISCOURSE": {
+      "KEY": "KEY",
+      "NAME": "NAME"
+    },
+    "NOTION": {
+      "KEY": "KEY",
+      "MARKET_TABLE_ID": "ID"
+    },
+    "KAKAO": {
+      "KEY": "KEY"
+    }
+  }
 }

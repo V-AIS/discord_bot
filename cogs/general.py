@@ -81,7 +81,7 @@ class General(commands.Cog, name="general"):
     @commands.hybrid_command(name="도움말", description="봇의 명령어 리스트입니다")
     @checks.not_blacklisted()
     async def help(self, context: Context) -> None:
-        prefix = self.bot.config["prefix"]
+        prefix = self.bot.config["PREFIX"]
         embed = discord.Embed(
             title="도움말", description="봇 명령어 리스트:", color=0x9C84EF
         )
@@ -123,7 +123,7 @@ class General(commands.Cog, name="general"):
         embed.add_field(name="Temperature", value=bot_hardware_info["Temperature"], inline=False)
         embed.add_field(
             name="Prefix:",
-            value=f"/ (Slash Commands) 혹은 {self.bot.config['prefix']} 를 이용하여 커맨드를 입력하세요",
+            value=f"/ (Slash Commands) 혹은 {self.bot.config['PREFIX']} 를 이용하여 커맨드를 입력하세요",
             inline=False,
         )
         embed.set_footer(text=f"Requested by {context.author}")

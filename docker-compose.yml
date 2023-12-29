@@ -11,13 +11,3 @@ services:
       - /etc/localtime:/etc/localtime:ro
     environment:
       - TZ=Asia/Seoul
-    networks:
-      - backend
-  
-networks:
-  backend:
-    driver: bridge
-
-volumes:
-  data:
-    driver: local
