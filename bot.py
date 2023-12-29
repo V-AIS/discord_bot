@@ -74,10 +74,9 @@ It is recommended to use slash commands and therefore not use prefix commands.
 
 If you want to use prefix commands, make sure to also enable the intent below in the Discord developer portal.
 """
-# intents.message_content = True
 
 bot = Bot(
-    command_prefix=commands.when_mentioned_or(config["prefix"]),
+    command_prefix=commands.when_mentioned_or(config["PREFIX"]),
     intents=intents,
     help_command=None,
 )
@@ -179,7 +178,7 @@ async def on_ready() -> None:
     tldr_feed.start()
     
     # Insert channel info to DB
-    if config["sync_commands_globally"]:
+    if bot.config["SYNC_COMMANDS_GLOBALLY"]:
         bot.logger.info("Syncing commands globally...")
         await bot.tree.sync()
 
@@ -194,7 +193,7 @@ async def status_task() -> None:
 @tasks.loop(seconds=1)
 async def news_feed():
     now = datetime.now()
-    channel = bot.get_channel(1082998215814688829)
+    channel = bot.get_channel(bot.config["FEED_CHANNEL"]["NEWS"])
     if now.strftime("%H:%M:%S") == "09:00:00":
         bot.logger.info("Stock Market News Feed")
         try:
@@ -209,12 +208,12 @@ async def news_feed():
         
 @tasks.loop(minutes=2.5)
 async def youtube_feed():
-    channel = bot.get_channel(1105872936776245349)
+    channel = bot.get_channel(bot.config["FEED_CHANNEL"]["YOUTUBE"])
     try:
         await bot.youtube.get_new_video()
         rows = await helpers.db_manager.get_youtube_video()
         if len(rows):
-            bot.logger.info("Youtube FeedFeed")
+            bot.logger.info(f"Youtube FeedFeed (Number of new video: {len(rows)})")
         for row in rows:
             await channel.send(row[2])
             await helpers.db_manager.update_youtube_video(row[0], row[1], row[2])
@@ -225,7 +224,7 @@ async def youtube_feed():
 async def tldr_feed():
     now = datetime.now()
     weekday = now.weekday()
-    channel = bot.get_channel(1110112301106860052)
+    channel = bot.get_channel(bot.config["FEED_CHANNEL"]["TLDR"])
     if weekday not in [0, 6] and now.strftime("%H:%M:%S") == "10:00:00":
         bot.logger.info("TLDR Feed")
         try:    
@@ -392,4 +391,4 @@ async def load_cogs() -> None:
 
 asyncio.run(init_db())
 asyncio.run(load_cogs())
-bot.run(config["token"])
+bot.run(bot.config["TOKEN"])

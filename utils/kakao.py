@@ -3,7 +3,7 @@ import json
 
 class kakao_agent:
     def __init__(self, config): 
-        self.REST_API_KEY = config["tokens"]["karlo"]["key"]
+        self.REST_API_KEY = config["TOKENS"]["KAKAO"]["KEY"]
 
     def karlo_t2i(self, prompt, negative_prompt):
         r = requests.post(
