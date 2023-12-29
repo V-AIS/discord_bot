@@ -7,8 +7,8 @@ class ToDiscourse():
         self.config = config
         self.HEADERS = {
             "Content-Type": "application/json",
-            "Api-Key": config['tokens']['discourse']['key'],
-            "Api-Username": config['tokens']['discourse']['name']
+            "Api-Key": config['TOKENS']['DISCOURSE']['KEY'],
+            "Api-Username": config['TOKENS']['DISCOURSE']['NAME']
         }
 
     def post_topic(self, payload):
@@ -32,7 +32,7 @@ class ToDiscourse():
                 "title": title,
                 "raw": title,
                 "category": category_id,
-                "target_recipients": self.config['tokens']['discourse']['name']
+                "target_recipients": self.config['TOKENS']['DISCOURSE']['NAME']
             }
             daily_topic_id = self.post_topic(payload).json()["topic_id"]
         else: 
