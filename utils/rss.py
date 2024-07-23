@@ -43,13 +43,15 @@ class YoutubeFeed():
 class TLDRFeed():
     def __init__(self):
         self.root_url = "https://tldr.tech"
-        self.categories = ["tech"]
-
+        self.categories = ["tech", "ai"]
+        self.headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+                }
     async def get_feed(self, date):
         contents = {}
         for category in self.categories:
             url = os.path.join(self.root_url, category, date)
-            res = requests.get(url)
+            res = requests.get(url, headers=self.headers)
             if res.status_code != 200: 
                 continue
             else:
