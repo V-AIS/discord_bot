@@ -9,6 +9,7 @@ class kakao_agent:
         r = requests.post(
             'https://api.kakaobrain.com/v2/inference/karlo/t2i',
             json = {
+                "version": "v2.1", 
                 'prompt': prompt,
                 'negative_prompt': negative_prompt,
                 'guidance_scale': 10.0,
