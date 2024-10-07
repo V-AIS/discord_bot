@@ -159,7 +159,6 @@ bot.config = config
 bot.youtube = utils.YoutubeFeed(logger)
 bot.tldr = utils.TLDRFeed()
 bot.discourse = utils.ToDiscourse(bot.config)
-bot.kakao = utils.kakao_agent(bot.config)
 
 @bot.event
 async def on_ready() -> None:
