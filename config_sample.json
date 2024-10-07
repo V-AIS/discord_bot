@@ -21,9 +21,6 @@
     "NOTION": {
       "KEY": "KEY",
       "MARKET_TABLE_ID": "ID"
-    },
-    "KAKAO": {
-      "KEY": "KEY"
     }
   }
 }

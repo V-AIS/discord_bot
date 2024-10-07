@@ -174,24 +174,5 @@ class Fun(commands.Cog, name="fun"):
         view = RockPaperScissorsView()
         await context.send("게임 시작!", view=view)
 
-    @commands.hybrid_command(name="칼로생성", description="Karlo를 이용해서 이미지를 생성합니다")
-    @checks.not_blacklisted()
-    @app_commands.describe(prompt="입력 할 프롬프트(영어로!!!)", negative_prompt="영어로!!!")
-    async def karlo_generation(self, context: Context, *, prompt: str, negative_prompt: str=""):
-        try:
-            await context.defer()
-            response = self.bot.kakao.karlo_t2i(prompt, negative_prompt)
-            embed = discord.Embed(title="칼로 생성 결과", description=f"prompt: {prompt}\nnegative prompt: {negative_prompt}")
-            # embed.set_image(url=response.get("images")[0].get("image"))
-            # await asyncio.sleep(delay=0)
-            # await context.reply(embed=embed)
-            Image.open(urllib.request.urlopen(response.get("images")[0].get("image"))).save("tmp.jpg")
-            file = discord.File("tmp.jpg", filename="tmp.jpg")
-            embed.set_image(url="attachment://tmp.jpg")
-            await asyncio.sleep(delay=0)
-            await context.reply(file=file, embed=embed)
-            os.remove("tmp.jpg")
-        except:
-            await context.reply("에러가 발생했습니다.")
 async def setup(bot):
     await bot.add_cog(Fun(bot))
