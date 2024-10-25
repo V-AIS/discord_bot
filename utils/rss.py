@@ -57,19 +57,22 @@ class TLDRFeed():
             else:
                 soup = BeautifulSoup(res.content, "html.parser")
                 tmp_contents = {}
-                for div in soup.find_all("div", class_="mt-3"):
-                    if len(div.text)<10: 
-                        key = div.parent.text.replace("\n", " ")
-                        if key not in tmp_contents:
-                            tmp_contents[key] = {}
-                        for sub_div in div.parent.parent.find_all("div", class_="mt-3"):
-                            if len(sub_div.text) < 40: continue
-                            title = sub_div.find("a").text.replace("\n", "")
-                            link = sub_div.find("a")["href"]
-                            tmp_contents[key][title] = {
-                                "link": link,
-                                "content": sub_div.find("div").getText()
-                            }
+
+                for section in soup.find_all("section"):
+                    if len(section.text)>10: 
+                        header = section.find("header").text
+                        if not header: continue
+                        if header not in tmp_contents:
+                                tmp_contents[header] = {}
+                        for article in section.find_all("article"):
+                            tmp = article.find("a")
+                            title = tmp.text
+                            link = tmp["href"]
+                            content = article.find("div").text
+                            tmp_contents[header][title] = {
+                                                "link": link,
+                                                "content": content
+                                            }
             contents[category] = tmp_contents
         return contents
 
