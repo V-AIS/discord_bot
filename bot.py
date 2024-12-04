@@ -158,7 +158,6 @@ bot.config = config
 
 bot.youtube = utils.YoutubeFeed(logger)
 bot.tldr = utils.TLDRFeed()
-bot.discourse = utils.ToDiscourse(bot.config)
 
 @bot.event
 async def on_ready() -> None:
@@ -253,9 +252,6 @@ async def on_message(message: discord.Message) -> None:
     :param message: The message that was sent.
     """
     if message.author == bot.user or message.author.bot:
-        if message.channel.name == "💡geek-news":
-            bot.discourse.post_geeknews(message)
-        else:
             return
     # 모든 로그 수집
     await helpers.db_manager.add_log(**archiving.chat2log(message))
