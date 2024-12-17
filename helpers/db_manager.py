@@ -293,6 +293,7 @@ async def add_paper(channel_name: str, channel_id: int, message_author: str, mes
             await db.commit()
         return 
 
+# About YouTube
 async def get_youtube_channel_info() -> list:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute("SELECT channel_name, rss_link FROM youtube_channel") as cursor:
@@ -402,7 +403,48 @@ async def update_youtube_video(channel_name: str, video_id: int, video_link: str
         await db.commit()
         return 
 
+# About DB search
+async def get_github(channel_name: str, message_author: str) -> list:
+    where_clauses = []
+    where_values = []
+    
+    if channel_name:
+        where_clauses.append("channel_name=?")
+        where_values.append(channel_name)
+    
+    if message_author:
+        where_clauses.append("message_author=?")
+        where_values.append(message_author)
+    
+    where_exp = " AND ".join(where_clauses) if where_clauses else "1=1"
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            f"SELECT * FROM github WHERE {where_exp}", tuple(where_values)) as cursor:
+            result = await cursor.fetchall()
+            return result
+
+async def get_paper(channel_name: str, message_author: str) -> list:
+    where_clauses = []
+    where_values = []
+    
+    if channel_name:
+        where_clauses.append("channel_name=?")
+        where_values.append(channel_name)
+    
+    if message_author:
+        where_clauses.append("message_author=?")
+        where_values.append(message_author)
+    
+    where_exp = " AND ".join(where_clauses) if where_clauses else "1=1"
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            f"SELECT * FROM paper WHERE {where_exp}", tuple(where_values)) as cursor:
+            result = await cursor.fetchall()
+            return result
+        
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(add_youtube_channel_info())
+    print(asyncio.run(get_paper("📓논문-공유")))
