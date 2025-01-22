@@ -15,7 +15,6 @@ import platform
 import sys
 from datetime import datetime, timedelta
 
-import pymongo
 import aiosqlite
 import discord
 from discord.ext import commands, tasks
