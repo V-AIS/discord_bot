@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Context
 
-from helpers import checks
+from helpers import checks, db_manager
 
 class Search(commands.Cog, name="search"):
     def __init__(self, bot):
@@ -41,14 +41,20 @@ class Search(commands.Cog, name="search"):
     @commands.hybrid_command(name="db검색", description="DB검색",)
     @checks.not_blacklisted()
     @app_commands.describe(subject="논문/깃헙 중 하나를 적어주세요", channel="어떤 채널에서 보셨나요?", teller="누가 얘기했었나요?")
-    async def search_in_db(self, context: Context, *,subject: typing.Literal["논문", "깃헙"], channel: str = "", teller: str = "") -> None:
-        embed = discord.Embed(
-            title="입력 값",
-            description=f"{subject}{channel}{teller}",
-            color=0x9C84EF,
-        )
-        embed.set_footer(text=f"{subject}{channel}{teller}")
+    async def search_in_db(self, context: Context, *, subject: typing.Literal["논문", "깃헙"], channel: str="", teller: str = "") -> None:
+
+        embed = discord.Embed(title=f"{subject} 검색 결과",color=0x9C84EF)
+        match subject:
+            case "논문":
+                query_result = await db_manager.get_paper(channel, teller)
+                for row in query_result[:5]:
+                    embed.add_field(name=row[5], value=row[7], inline=False)
+            case "깃헙":
+                query_result = await db_manager.get_github(channel, teller)
+                for row in query_result[:5]:
+                    embed.add_field(name=f"https://github.com/{row[4]}/{row[5]}", value=row[6], inline=False)
         await context.send(embed=embed)
+        
 # And then we finally add the cog to the bot so that it can load, unload, reload and use it's content.
 async def setup(bot):
     await bot.add_cog(Search(bot))
