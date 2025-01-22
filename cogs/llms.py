@@ -21,22 +21,20 @@ class LLM(commands.Cog, name="llm"):
     @checks.not_blacklisted()
     @app_commands.describe(content="물어볼 내용!")
     async def ask_to_gemini(self, context: Context, *, content: str=""):
+        embed = discord.Embed()
         if not content:
-            response = "내용을 입력하세요!"
-            color = discord.Color.red()
+            embed.color = discord.Color.red()
+            embed.description =  "내용을 입력하세요!"
         else:
             try: 
-                response = self.model.generate_content(contents=[content]).text
-                color = discord.Color.green()
+                embed.color = discord.Color.green()
+                embed.description = self.model.generate_content(contents=[content]).text
+                embed.set_author(name="Gemini", icon_url="https://camo.githubusercontent.com/77ba4ba362fc39151379e4e7691125c8bb130eb2ade811ce9f76d4d5236c6847/68747470733a2f2f75706c6f61642e77696b696d656469612e6f72672f77696b6970656469612f636f6d6d6f6e732f7468756d622f662f66302f476f6f676c655f426172645f6c6f676f2e7376672f3132303070782d476f6f676c655f426172645f6c6f676f2e7376672e706e67")
             except:
-                response = "기능 확인이 필요합니다! 운영진에게 알려주세요!"
-                color = discord.Color.red()
+                embed.color = discord.Color.red()
+                embed.description =  "기능 확인이 필요합니다! 운영진에게 알려주세요!"
 
-        embed = discord.Embed(
-            description=f"{response}",
-            color=color,
-        )
-        await context.send(embed=embed)
+        await context.reply(embed=embed)
 
     @commands.hybrid_command(name="exaone", description="Exaone에게 물어봅니다! 일회성 질문이에요!")
     @checks.not_blacklisted()
