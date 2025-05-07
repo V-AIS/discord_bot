@@ -2,6 +2,7 @@ import typing
 import json
 import requests
 import asyncio
+import aiohttp
 
 import discord
 from discord import app_commands
@@ -16,7 +17,7 @@ class LLM(commands.Cog, name="llm"):
     def __init__(self, bot):
         self.bot = bot
         genai.configure(api_key=bot.config["TOKENS"]["GOOGLE"]["KEY"])
-        self.model = genai.GenerativeModel(model_name = 'gemini-2.0-flash-exp', system_instruction="You are a helpful assistant.")
+        self.model = genai.GenerativeModel(model_name = 'gemini-2.0-flash-lite', system_instruction="You are a helpful assistant.")
     
     @commands.hybrid_command(name="gemini", description="Gemini에게 물어봅니다! 일회성 질문이에요!")
     @checks.not_blacklisted()
@@ -56,7 +57,7 @@ class LLM(commands.Cog, name="llm"):
             try:
                 headers = {"Content-Type": "application/json; charset=utf-8"}
                 data = {
-                        "model": "exaone3.5:2.4b",
+                        "model": "huihui_ai/kanana-nano-abliterated:2.1b-instruct-fp16", #"exaone3.5:2.4b",
                         "stream": False,
                         "messages": [
                             {
@@ -65,9 +66,17 @@ class LLM(commands.Cog, name="llm"):
                             }
                         ],
                     }
-                response = requests.post(f'{self.bot.config["TOKENS"]["ORACLE"]["HOST"]}/api/chat', headers=headers, data=json.dumps(data)) .json()
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f'{self.bot.config["TOKENS"]["ORACLE"]["HOST"]}/api/chat',
+                        headers=headers,
+                        data=json.dumps(data)
+                    ) as response:
+                        response = await response.json()
+                        embed.description = response["message"]["content"]        
+
                 embed.color = discord.Color.green()
-                embed.description = response["message"]["content"]
+                
             except Exception as e:
                 embed.color = discord.Color.red()
                 embed.description = "기능 확인이 필요합니다! 운영진에게 알려주세요!"

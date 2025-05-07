@@ -10,3 +10,4 @@ services:
       - /etc/localtime:/etc/localtime:ro
     environment:
       - TZ=Asia/Seoul
+    restart: unless-stopped
