@@ -130,6 +130,7 @@ class General(commands.Cog, name="general"):
         await context.send(embed=embed)
 
     @commands.hybrid_command(name="서버정보",description="V-AIS 서버 정보를 보여줍니다",)
+    @commands.guild_only()
     @checks.not_blacklisted()
     async def serverinfo(self, context: Context) -> None:
         """
@@ -138,9 +139,11 @@ class General(commands.Cog, name="general"):
         :param context: The hybrid command context.
         """
         roles = [role.name for role in context.guild.roles]
-        if len(roles) > 50:
+        total_roles = len(roles)
+        if total_roles > 50:
+            # 자른 뒤에 len() 을 세면 항상 "50/50" 이 나온다.
             roles = roles[:50]
-            roles.append(f">>>> Displaying[50/{len(roles)}] Roles")
+            roles.append(f">>>> Displaying[50/{total_roles}] Roles")
         roles = ", ".join(roles)
 
         embed = discord.Embed(
@@ -213,9 +216,11 @@ class General(commands.Cog, name="general"):
     @commands.hybrid_command(name="채널정보", description="해당 채널의 정보를 알려드립니다!",)
     @checks.not_blacklisted()
     async def channel_info(self, context: Context) -> None:
+        # DMChannel 에는 name 이 없다.
+        channel_name = getattr(context.channel, "name", None)
         embed = discord.Embed(
-            title=f"{context.channel.name}",
-            description= CHANNEL_INFO[context.channel.name] if context.channel.name in CHANNEL_INFO else "이 채널에 대한 정보가 아직 없습니다!",
+            title=f"{channel_name or 'DM'}",
+            description= CHANNEL_INFO.get(channel_name, "이 채널에 대한 정보가 아직 없습니다!"),
             color=0x9C84EF,
         )
         await context.send(embed=embed)
@@ -227,9 +232,9 @@ class General(commands.Cog, name="general"):
             color=0x9C84EF,
         )
         embed.add_field(name="Ayana (https://ayana.io)", value="명령어: https://ayana.io/docs/commands\n채팅창에 /music play 를 입력하시면 안내가 나옵니다!", inline=False)
-        embed.add_field(name="", value="", inline=False)
+        embed.add_field(name="​", value="​", inline=False)
         embed.add_field(name="Mirai (https://mirai.brussell.me)", value="명령어: https://mirai.brussell.me/commands\n1. mm.join 을 입력해서 Mirai를 음성 채널에 참가시켜주세요!\n2. mm.play {youtube URL} 을 하시면 재생됩니다!\n3. mm.queue {youtube URL} 을 하시면 재생 목록이 추가됩니다!", inline=False)
-        embed.add_field(name="", value="", inline=False)
+        embed.add_field(name="​", value="​", inline=False)
         embed.add_field(name="Vexera (https://vexera.io)", value="명령어: https://vexera.io/commands\n1. +play {youtube URL} 하시면 Vexera가 음성 채널 참가되고 음악을 재생합니다!\n2. +play-next {youtube URL} 를 하시면 대기열에 추가할 수 있어요!", inline=False)
         await context.send(embed=embed)
 

@@ -71,12 +71,14 @@ async def remove_user_from_blacklist(user_id: int) -> int:
             return result[0] if result is not None else 0
 
 
-async def add_warn(user_id: int, server_id: int, moderator_id: int, reason: str) -> int:
+async def add_warn(user_id: int, server_id: int, moderator_id: int, reason: str) -> tuple:
     """
     This function will add a warn to the database.
 
     :param user_id: The ID of the user that should be warned.
     :param reason: The reason why the user should be warned.
+    :return: (warn_id, total) — 새 경고의 ID와 해당 유저의 총 경고 수.
+             경고를 삭제한 이력이 있으면 두 값이 갈라지므로 함께 돌려준다.
     """
     async with aiosqlite.connect(DATABASE_PATH) as db:
         rows = await db.execute(
@@ -100,7 +102,12 @@ async def add_warn(user_id: int, server_id: int, moderator_id: int, reason: str)
                 ),
             )
             await db.commit()
-            return warn_id
+            async with db.execute(
+                "SELECT COUNT(*) FROM warns WHERE user_id=? AND server_id=?",
+                (user_id, server_id),
+            ) as count_cursor:
+                total = await count_cursor.fetchone()
+            return warn_id, (total[0] if total is not None else 0)
 
 
 async def remove_warn(warn_id: int, user_id: int, server_id: int) -> int:
@@ -156,46 +163,37 @@ async def get_warnings(user_id: int, server_id: int) -> list:
                 result_list.append(row)
             return result_list
 
-async def add_discord_channel_info(channel_name: str, channel_id: int) -> None:
+async def prune_logs(days: int) -> int:
     """
-    This function will add a evry chat log to the database.
+    보존 기간이 지난 대화 로그를 삭제한다. 운영자가 명시적으로 호출한다.
+
+    :param days: 보관할 일수. 이보다 오래된 log 행을 지운다.
+    :return: 삭제된 행 수
     """
-    # DB 내 동일 정보 확인 필요 
-    # Fetch DB
-    
-    # IF not in DB
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        rows = await db.execute(
-            "SELECT channel_name, channel_id \
-                FROM channel_list WHERE channel_id=?",
-            ( 
-                channel_id, 
-            ),
+        cursor = await db.execute(
+            "DELETE FROM log WHERE created_at < datetime('now', ?)",
+            (f"-{int(days)} days",),
         )
-        async with rows as cursor:
-            result = await cursor.fetchall()
-        if not len(result):
-            await db.execute(
-                "INSERT INTO channel_list(channel_name, channel_id) \
-                    VALUES (?, ?)",
-                (
-                    channel_name,
-                    channel_id
-                ),
-            )
-            await db.commit()
-        else:
-            await db.execute(
-                "UPDATE channel_list \
-                    SET channel_name= ? \
-                        WHERE channel_id=?",
-                (
-                    channel_name,
-                    channel_id
-                ),
-            ) 
-            await db.commit()
-        return 
+        await db.commit()
+        return cursor.rowcount
+
+
+async def prune_sent_youtube_videos(days: int) -> int:
+    """
+    이미 전송한 오래된 유튜브 영상 기록을 삭제한다.
+
+    :param days: 보관할 일수
+    :return: 삭제된 행 수
+    """
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM youtube_video WHERE send!=0 AND created_at < datetime('now', ?)",
+            (f"-{int(days)} days",),
+        )
+        await db.commit()
+        return cursor.rowcount
+
 
 async def add_log(channel_name: str, channel_id: int, message_author: str, message_author_id: int, message_content: str) -> None:
     """

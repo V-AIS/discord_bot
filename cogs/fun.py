@@ -6,6 +6,7 @@ Description:
 Version: 5.5.0
 """
 
+import json
 import random
 
 import asyncio
@@ -22,21 +23,30 @@ import os
 import urllib
 from PIL import Image
 
+# app_commands.guilds() 는 클래스 정의 시점에 평가되므로 bot.config 를 쓸 수 없다.
+# config.json 을 직접 읽되, 없으면 기존 동작을 그대로 유지한다.
+with open(f"{os.path.realpath(os.path.dirname(__file__))}/../config.json") as _f:
+    GUILD_ID = json.load(_f).get("GUILD_ID", 1082978815334170684)
+
 class Choice(discord.ui.View):
     def __init__(self):
         super().__init__()
         self.value = None
 
+    # discord.py 2.x 의 콜백 시그니처는 (self, interaction, button) 순서다.
+    # 인자를 뒤바꿔 받으면 상호작용 응답을 못 해 "상호작용 실패" 가 표시된다.
     @discord.ui.button(label="앞", style=discord.ButtonStyle.blurple)
     async def confirm(
-        self, button: discord.ui.Button, interaction: discord.Interaction
+        self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         self.value = "앞"
+        await interaction.response.defer()
         self.stop()
 
     @discord.ui.button(label="뒤", style=discord.ButtonStyle.blurple)
-    async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.value = "뒤"
+        await interaction.response.defer()
         self.stop()
 
 
@@ -73,8 +83,9 @@ class RockPaperScissors(discord.ui.Select):
         bot_choice_index = choices[bot_choice]
 
         result_embed = discord.Embed(color=0x9C84EF)
+        # 커스텀 아바타가 없는 계정은 avatar 가 None 이다. display_avatar 는 항상 있다.
         result_embed.set_author(
-            name=interaction.user.name, icon_url=interaction.user.avatar.url
+            name=interaction.user.name, icon_url=interaction.user.display_avatar.url
         )
 
         if user_choice_index == bot_choice_index:
@@ -114,7 +125,7 @@ class Fun(commands.Cog, name="fun"):
         self.bot = bot
 
     @commands.hybrid_command(name="주저리주저리", description="아무 실화..를 출력합니다.")
-    @app_commands.guilds(discord.Object(id=1082978815334170684)) # Place your guild ID here
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
     @checks.not_blacklisted()
     async def randomfact(self, context: Context) -> None:
         """

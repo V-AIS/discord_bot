@@ -204,11 +204,11 @@ class Moderation(commands.Cog, name="moderation"):
         member = context.guild.get_member(user.id) or await context.guild.fetch_member(
             user.id
         )
-        total = await db_manager.add_warn(
+        warn_id, total = await db_manager.add_warn(
             user.id, context.guild.id, context.author.id, reason
         )
         embed = discord.Embed(
-            description=f"**{member}** was warned by **{context.author}**!\nTotal warns for this user: {total}",
+            description=f"**{member}** was warned by **{context.author}**!\nWarn ID #{warn_id} · Total warns for this user: {total}",
             color=0x9C84EF,
         )
         embed.add_field(name="Reason:", value=reason)

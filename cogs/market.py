@@ -1,4 +1,6 @@
 import json
+import typing
+
 import requests
 
 import discord
@@ -18,8 +20,12 @@ COLOR_MAP = {
 class Market(commands.Cog, name="market"):
     def __init__(self, bot):
         self.bot = bot
+        # 키가 없어도 cog 가 로딩되도록 방어한다. __init__ 에서 KeyError 가 나면
+        # market cog 전체가 조용히 사라진다.
+        notion = bot.config.get("TOKENS", {}).get("NOTION", {})
+        self.table_id = notion.get("MARKET_TABLE_ID")
         self.header = {
-                "Authorization": f"Bearer {self.bot.config['TOKENS']['NOTION']['KEY']}", 
+                "Authorization": f"Bearer {notion.get('KEY', '')}",
                 "Notion-Version": "2021-08-16",
                 "Content-Type":"application/json"
                 }
@@ -46,11 +52,13 @@ class Market(commands.Cog, name="market"):
     @commands.hybrid_command(name="마켓등록",description="구매/판매/나눔을 해요")
     @checks.not_blacklisted()
     @app_commands.describe(kind="무엇을 하시나요? (구매/판매/나눔)", product="무엇을 구매/판매/나눔을 하시나요?", price="얼마인가요?", other="참고해야 할 사항이 있나요?")
-    async def market_enroll(self, context: Context, *, kind: str, product: str, price: int, other: str) -> None:
-        
+    async def market_enroll(self, context: Context, kind: typing.Literal["구매", "판매", "나눔"], product: str, price: int, *, other: str = "") -> None:
+        # keyword-only 인자가 둘 이상이면 프리픽스 호출에서 첫 인자만 채워지고
+        # 나머지는 TypeError 가 된다. 자유 텍스트인 other 하나만 남긴다.
+
         readurl = f"https://api.notion.com/v1/pages/"
         new_page_data = {
-                        'parent': {'database_id': self.bot.config['TOKENS']['NOTION']['MARKET_TABLE_ID'],
+                        'parent': {'database_id': self.table_id,
                         'type': 'database_id'},
                         'properties': {
                             '가격': {'id': 'nSGB', 
@@ -108,8 +116,8 @@ class Market(commands.Cog, name="market"):
     @commands.hybrid_command(name="마켓완료",description="구매/판매/나눔을 완료했어요")
     @checks.not_blacklisted()
     @app_commands.describe(kind="무엇을 하셨나요?(구매/판매/나눔)", product="무엇을 구매하시나요?")
-    async def marker_complete(self, context: Context, *, kind: str, product: str) -> None:
-        query_url = f"https://api.notion.com/v1/databases/{self.bot.config['TOKENS']['NOTION']['MARKET_TABLE_ID']}/query"
+    async def marker_complete(self, context: Context, kind: typing.Literal["구매", "판매", "나눔"], *, product: str) -> None:
+        query_url = f"https://api.notion.com/v1/databases/{self.table_id}/query"
         filter = {
             "filter": {
                 "and": [
@@ -141,8 +149,18 @@ class Market(commands.Cog, name="market"):
                 }
         }
         res = requests.post(query_url, headers=self.header, data=json.dumps(filter))
-        page_id = res.json()["results"][0]["id"]
-        
+        results = res.json().get("results", []) if res.status_code == 200 else []
+        if not results:
+            # 오타이거나 이미 완료된 물품. 예전에는 IndexError 로 죽었다.
+            embed = discord.Embed(
+                title="**처리 상태**",
+                description=f"{context.author.name}님의 진행 중인 {kind} 물품 '{product}'을(를) 찾지 못했습니다.",
+                color=0xE02B2B,
+            )
+            await context.send(embed=embed)
+            return
+        page_id = results[0]["id"]
+
         page_url = f"https://api.notion.com/v1/pages/{page_id}"
 
         data = {

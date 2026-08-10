@@ -287,20 +287,45 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
     
+    @commands.hybrid_command(name="데이터정리", description="보존 기간이 지난 대화 로그와 전송 완료 영상 기록을 삭제합니다")
+    @checks.is_owner()
+    @app_commands.describe(days="며칠치를 남길까요? (기본 365일)")
+    async def prune_data(self, context: Context, days: int = 365) -> None:
+        # 회원 데이터 삭제는 되돌릴 수 없으므로 자동 태스크가 아니라
+        # 운영자가 직접 호출하는 커맨드로 둔다.
+        if days < 1:
+            await context.send("보관 일수는 1 이상이어야 합니다.")
+            return
+        logs = await db_manager.prune_logs(days)
+        videos = await db_manager.prune_sent_youtube_videos(days)
+        embed = discord.Embed(title="데이터 정리 완료", color=0x9C84EF)
+        embed.description = f"{days}일 이전 기록을 삭제했습니다."
+        embed.add_field(name="대화 로그", value=f"{logs:,}건", inline=True)
+        embed.add_field(name="전송 완료 영상", value=f"{videos:,}건", inline=True)
+        await context.send(embed=embed)
+
     @commands.hybrid_command(name="channel_reset", description="채널 초기화")
+    @commands.guild_only()
     @checks.is_owner()
     async def channel_reset(self, context: Context) -> None:
-        await context.channel.delete()
-        new_channel = await context.channel.clone(reason="Channel was purged")
-        await new_channel.edit(position=context.channel.position)
-    
+        # 삭제를 먼저 하면 이 채널로 응답을 보낼 수 없고, 복제 대상도 사라진다.
+        # 복제 → 위치 조정 → 삭제 순으로 처리한다.
+        old_channel = context.channel
+        await context.send(f"**채널 초기화**: {old_channel.name} 을(를) 다시 만듭니다.")
+        new_channel = await old_channel.clone(reason="Channel was purged")
+        await new_channel.edit(position=old_channel.position)
+        await old_channel.delete(reason="Channel was purged")
+
     @commands.hybrid_command(name="subscribe_youtube_channel", description="유튜브 구독")
     @checks.is_owner()
     @app_commands.describe(channel_name="유튜브 채널 핸들아이디")
     async def subscribe_youtube_channel(self, context: Context, channel_name: str) -> None:
-        await self.bot.youtube.add_channel_rss_url(channel_name)
-        await context.send(f"**채널 구독 완료**: {channel_name}")
-        
+        result = await self.bot.youtube.add_channel_rss_url(channel_name)
+        if result == "Channel information added":
+            await context.send(f"**채널 구독 완료**: {channel_name}")
+        else:
+            await context.send(f"**구독 실패**: 채널명을 확인해주세요 — {channel_name}")
+
     @commands.hybrid_command(name="unsubscribe_youtube_channel", description="유튜브 구독 취소")
     @checks.is_owner()
     @app_commands.describe(channel_name="유튜브 채널 핸들아이디")
