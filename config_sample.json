@@ -19,8 +19,8 @@
       "KEY": "KEY",
       "MARKET_TABLE_ID": "ID"
     },
-    "GEMINI": {
-      "HOST": "http://YOUR_GEMINI_GATEWAY_HOST:8001"
+    "GOOGLE": {
+      "HOST": "http://YOUR_GEMINI_GATEWAY_HOST:PORT"
     }
   }
 }

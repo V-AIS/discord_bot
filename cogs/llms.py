@@ -6,8 +6,8 @@ from discord.ext.commands import Context
 
 from helpers import checks
 
-# 게이트웨이 주소는 config.json 의 TOKENS.GEMINI.HOST 로 덮어쓸 수 있다.
-GEMINI_GATEWAY_DEFAULT = "http://192.168.0.252:8001"
+# 게이트웨이 주소는 config.json 의 TOKENS.GOOGLE.HOST 에서만 읽는다.
+# 내부 주소를 코드에 기본값으로 두면 공개 저장소에 그대로 남는다.
 GEMINI_MODEL = "gemini-3.5-flash-lite"
 GEMINI_ICON = "https://camo.githubusercontent.com/77ba4ba362fc39151379e4e7691125c8bb130eb2ade811ce9f76d4d5236c6847/68747470733a2f2f75706c6f61642e77696b696d656469612e6f72672f77696b6970656469612f636f6d6d6f6e732f7468756d622f662f66302f476f6f676c655f426172645f6c6f676f2e7376672f3132303070782d476f6f676c655f426172645f6c6f676f2e7376672e706e67"
 
@@ -20,10 +20,8 @@ class LLM(commands.Cog, name="llm"):
     def __init__(self, bot):
         self.bot = bot
         # 키가 없어도 cog 가 로딩되도록 .get() 으로 방어한다.
-        host = (
-            bot.config.get("TOKENS", {}).get("GEMINI", {}).get("HOST")
-            or GEMINI_GATEWAY_DEFAULT
-        )
+        # 미설정이면 커맨드 실행 시점에 안내한다.
+        host = bot.config.get("TOKENS", {}).get("GOOGLE", {}).get("HOST") or ""
         self.gateway = host.rstrip("/")
 
     @commands.hybrid_command(
@@ -35,6 +33,13 @@ class LLM(commands.Cog, name="llm"):
         await context.defer()
 
         embed = discord.Embed()
+        if not self.gateway:
+            embed.color = discord.Color.red()
+            embed.description = "Gemini 설정이 아직 없어요! 운영진에게 알려주세요!"
+            self.bot.logger.error("TOKENS.GOOGLE.HOST 가 config.json 에 없습니다")
+            await context.send(embed=embed)
+            return
+
         if not content:
             embed.color = discord.Color.red()
             embed.description = "내용을 입력하세요!"
