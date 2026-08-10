@@ -214,82 +214,76 @@ async def add_log(channel_name: str, channel_id: int, message_author: str, messa
         await db.commit()
         return 
 
-async def add_github(channel_name: str, channel_id: int, message_author: str, message_author_id: int, 
-                        github_username: str, repository_name: str, description: str) -> None:
+async def add_github(channel_name: str, channel_id: int, message_author: str, message_author_id: int,
+                        github_username: str, repository_name: str, description: str) -> tuple:
     """
-    This function will add a evry chat log to the database.
-    """
-    # DB 내 동일 정보 확인 필요 
-    # Fetch DB
-    
-    # IF not in DB
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        rows = await db.execute(
-            "SELECT channel_name, channel_id, message_author, message_author_id, github_username, repository_name, description \
-                FROM github WHERE github_username=? AND repository_name=?",
-            (
-                github_username, 
-                repository_name, 
-            ),
-        )
-        async with rows as cursor:
-            result = await cursor.fetchall()
-        if not len(result):
-            await db.execute(
-                "INSERT INTO github(channel_name, channel_id, message_author, message_author_id, github_username, repository_name, description) \
-                    VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    channel_name,
-                    channel_id,
-                    message_author,
-                    message_author_id,
-                    github_username, 
-                    repository_name,
-                    description
-                ),
-            )
-            await db.commit()
-        return 
+    아카이브에 저장소를 추가한다.
 
-async def add_paper(channel_name: str, channel_id: int, message_author: str, message_author_id: int, 
-                        source: str, title: str, authors: str, url: str, conference: str, year: str) -> None:
+    :return: (added, original) — add_paper 와 같은 규약.
     """
-    This function will add a evry chat log to the database.
-    """
-    # DB 내 동일 정보 확인 필요 
-    # Fetch DB
-    
-    # IF not in DB
     async with aiosqlite.connect(DATABASE_PATH) as db:
-        rows = await db.execute(
-            "SELECT channel_name, channel_id, message_author, message_author_id, source, title, authors, url, conference, year \
-                FROM paper WHERE title=? AND authors=?",
+        async with db.execute(
+            "SELECT message_author, created_at FROM github WHERE github_username=? AND repository_name=?",
+            (github_username, repository_name),
+        ) as cursor:
+            existing = await cursor.fetchone()
+        if existing is not None:
+            return False, existing
+
+        await db.execute(
+            "INSERT INTO github(channel_name, channel_id, message_author, message_author_id, github_username, repository_name, description) \
+                VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
-                title, 
-                authors, 
+                channel_name,
+                channel_id,
+                message_author,
+                message_author_id,
+                github_username,
+                repository_name,
+                description,
             ),
         )
-        async with rows as cursor:
-            result = await cursor.fetchall()
-        if not len(result):
-            await db.execute(
-                "INSERT INTO paper(channel_name, channel_id, message_author, message_author_id, source, title, authors, url, conference, year) \
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    channel_name,
-                    channel_id,
-                    message_author,
-                    message_author_id,
-                    source, 
-                    title,
-                    authors,
-                    url,
-                    conference,
-                    year
-                ),
-            )
-            await db.commit()
-        return 
+        await db.commit()
+        return True, None
+
+async def add_paper(channel_name: str, channel_id: int, message_author: str, message_author_id: int,
+                        source: str, title: str, authors: str, url: str, conference: str, year: str,
+                        abstract: str = "") -> tuple:
+    """
+    아카이브에 논문을 추가한다.
+
+    :return: (added, original) — added 는 새로 넣었는지 여부.
+             이미 있으면 original 은 (message_author, created_at), 없으면 None.
+             호출부가 중복을 사용자에게 안내할 수 있도록 원본 정보를 함께 돌려준다.
+    """
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            "SELECT message_author, created_at FROM paper WHERE title=? AND authors=?",
+            (title, authors),
+        ) as cursor:
+            existing = await cursor.fetchone()
+        if existing is not None:
+            return False, existing
+
+        await db.execute(
+            "INSERT INTO paper(channel_name, channel_id, message_author, message_author_id, source, title, authors, url, conference, year, abstract) \
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                channel_name,
+                channel_id,
+                message_author,
+                message_author_id,
+                source,
+                title,
+                authors,
+                url,
+                conference,
+                year,
+                abstract,
+            ),
+        )
+        await db.commit()
+        return True, None
 
 # About YouTube
 async def get_youtube_channel_info() -> list:
@@ -402,47 +396,108 @@ async def update_youtube_video(channel_name: str, video_id: int, video_link: str
         return 
 
 # About DB search
-async def get_github(channel_name: str, message_author: str) -> list:
-    where_clauses = []
-    where_values = []
-    
+#
+# 조회 함수는 SELECT * 를 쓰지 않는다. 컬럼을 명시하면 반환 인덱스가
+# SELECT 절 순서를 따르므로, 스키마에 컬럼이 추가돼도 호출부가 밀리지 않는다.
+#
+# 작성자 필터는 표시이름(message_author)이 아니라 message_author_id 를 쓴다.
+# 표시이름은 바뀐다 — 실제로 최다 기여자를 포함해 3명이 두 이름으로 쪼개져 있다.
+
+
+async def search_paper(
+    keyword: str = "", author_id: str = "", channel_name: str = "", limit: int = 10
+) -> list:
+    """아카이브된 논문을 검색한다.
+
+    :param keyword: 제목·저자에 대한 부분 일치
+    :param author_id: 공유한 사람의 Discord ID (표시이름이 아님)
+    :param channel_name: 공유된 채널명
+    :return: list[tuple] — (0:title, 1:url, 2:authors, 3:source, 4:year,
+             5:message_author, 6:created_at)
+    """
+    clauses, values = [], []
+    if keyword:
+        clauses.append("(title LIKE ? OR authors LIKE ?)")
+        values += [f"%{keyword}%", f"%{keyword}%"]
+    if author_id:
+        clauses.append("message_author_id=?")
+        values.append(str(author_id))
     if channel_name:
-        where_clauses.append("channel_name=?")
-        where_values.append(channel_name)
-    
-    if message_author:
-        where_clauses.append("message_author=?")
-        where_values.append(message_author)
-    
-    where_exp = " AND ".join(where_clauses) if where_clauses else "1=1"
-    
+        clauses.append("channel_name=?")
+        values.append(channel_name)
+    where = " AND ".join(clauses) if clauses else "1=1"
+
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute(
-            f"SELECT * FROM github WHERE {where_exp}", tuple(where_values)) as cursor:
-            result = await cursor.fetchall()
-            return result
+            f"SELECT title, url, authors, source, year, message_author, created_at "
+            f"FROM paper WHERE {where} ORDER BY created_at DESC LIMIT ?",
+            (*values, limit),
+        ) as cursor:
+            return await cursor.fetchall()
 
-async def get_paper(channel_name: str, message_author: str) -> list:
-    where_clauses = []
-    where_values = []
-    
-    if channel_name:
-        where_clauses.append("channel_name=?")
-        where_values.append(channel_name)
-    
-    if message_author:
-        where_clauses.append("message_author=?")
-        where_values.append(message_author)
-    
-    where_exp = " AND ".join(where_clauses) if where_clauses else "1=1"
-    
+
+async def recent_archives(days: int = 7) -> dict:
+    """최근 N일간 아카이브된 논문·저장소와 기여자를 모은다. 주간 다이제스트용.
+
+    :return: {"papers": [(title, url, message_author)],
+              "repos": [(github_username, repository_name, message_author)],
+              "contributors": [(message_author, count)]}
+    """
+    window = f"-{int(days)} days"
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute(
-            f"SELECT * FROM paper WHERE {where_exp}", tuple(where_values)) as cursor:
-            result = await cursor.fetchall()
-            return result
-        
-if __name__ == "__main__":
-    import asyncio
+            "SELECT title, url, message_author FROM paper "
+            "WHERE created_at >= datetime('now', ?) ORDER BY created_at DESC",
+            (window,),
+        ) as cursor:
+            papers = await cursor.fetchall()
 
-    print(asyncio.run(get_paper("📓논문-공유")))
+        async with db.execute(
+            "SELECT github_username, repository_name, message_author FROM github "
+            "WHERE created_at >= datetime('now', ?) ORDER BY created_at DESC",
+            (window,),
+        ) as cursor:
+            repos = await cursor.fetchall()
+
+        async with db.execute(
+            "SELECT message_author, COUNT(*) c FROM ("
+            "  SELECT message_author FROM paper WHERE created_at >= datetime('now', ?)"
+            "  UNION ALL"
+            "  SELECT message_author FROM github WHERE created_at >= datetime('now', ?)"
+            ") GROUP BY 1 ORDER BY c DESC",
+            (window, window),
+        ) as cursor:
+            contributors = await cursor.fetchall()
+
+    return {"papers": papers, "repos": repos, "contributors": contributors}
+
+
+async def search_github(
+    keyword: str = "", author_id: str = "", channel_name: str = "", limit: int = 10
+) -> list:
+    """아카이브된 저장소를 검색한다.
+
+    :param keyword: 저장소명·설명에 대한 부분 일치
+    :param author_id: 공유한 사람의 Discord ID (표시이름이 아님)
+    :return: list[tuple] — (0:github_username, 1:repository_name, 2:description,
+             3:message_author, 4:created_at)
+    """
+    clauses, values = [], []
+    if keyword:
+        clauses.append("(repository_name LIKE ? OR description LIKE ?)")
+        values += [f"%{keyword}%", f"%{keyword}%"]
+    if author_id:
+        clauses.append("message_author_id=?")
+        values.append(str(author_id))
+    if channel_name:
+        clauses.append("channel_name=?")
+        values.append(channel_name)
+    where = " AND ".join(clauses) if clauses else "1=1"
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute(
+            f"SELECT github_username, repository_name, description, message_author, created_at "
+            f"FROM github WHERE {where} ORDER BY created_at DESC LIMIT ?",
+            (*values, limit),
+        ) as cursor:
+            return await cursor.fetchall()
