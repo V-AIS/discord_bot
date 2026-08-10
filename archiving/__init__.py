@@ -10,8 +10,10 @@ from helpers import db_manager
 PaperSource = ["arxiv.org", "thecvf.com", "dl.acm.org", "proceedings.mlr.press"] # "www.nature.com", "nips.cc", "neurips.cc"
 
 def chat2log(message):
+    # DMChannel 에는 name 속성이 없다. 방어하지 않으면 DM 메시지마다
+    # on_message 가 죽어 DM 커맨드가 전부 동작하지 않는다.
     log = {
-            "channel_name": message.channel.name,
+            "channel_name": getattr(message.channel, "name", "DM"),
             "channel_id": str(message.channel.id),
             "message_author": message.author.display_name,
             "message_author_id": str(message.author.id),
@@ -19,21 +21,25 @@ def chat2log(message):
         }
     return log
 
-def get_url(message: str) -> str:
-        
+def get_url(message: str) -> str | None:
+
     """Get URL within text
 
     Args:
         message (str): Message content
 
     Returns:
-        str: URL
+        str | None: 찾은 URL. 본문에 URL 형태가 없으면 None.
     """
 
     # URL 정규표현식
     regex = r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
 
-    url = re.findall(regex, message)[0][0]
+    matches = re.findall(regex, message)
+    if not matches:
+        # "arxiv.org 좋더라" 처럼 도메인만 언급한 경우. 호출부가 조기 반환한다.
+        return None
+    url = matches[0][0]
 
     break_point = False
     for i, t in enumerate(url):
@@ -64,6 +70,8 @@ def extract_github_desctiption(url: str) -> str:
 async def archive_github(message):
     # Preprocessing
     url = get_url(message.content)
+    if url is None:
+        return
     description = extract_github_desctiption(url)
     username, repo_name = url.split("/")[-2:]
     
@@ -85,6 +93,8 @@ async def archive_paper(message):
         # PMLR: Title, Authors, Booktitme, Year
         # NeurIPS: Title, Authors
         url = get_url(message.content)
+        if url is None:
+            return
         log = chat2log(message)
         log.pop("message_content")
         # print(url)

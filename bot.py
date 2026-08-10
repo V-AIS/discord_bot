@@ -13,7 +13,12 @@ import logging
 import os
 import platform
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
+# 컨테이너는 TZ=Asia/Seoul 로 뜨지만, 명시적 tzinfo 가 있어야
+# 로컬 실행과 컨테이너 실행의 스케줄이 일치한다.
+KST = ZoneInfo("Asia/Seoul")
 
 import aiosqlite
 import discord
@@ -120,7 +125,15 @@ logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(LoggingFormatter())
 # File handler
-file_handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
+# 신규 clone 에는 logs/ 가 없다. 없는 디렉터리에 FileHandler 를 만들면
+# 모듈 최상위에서 FileNotFoundError 로 봇이 기동하지 못한다.
+LOG_DIR = f"{os.path.realpath(os.path.dirname(__file__))}/logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+file_handler = logging.FileHandler(
+    filename=f"{LOG_DIR}/discord.log",
+    encoding="utf-8",
+    mode="w",
+)
 file_handler_formatter = logging.Formatter(
     "[{asctime}] [{levelname:<8}] {name}: {message}", "%Y-%m-%d %H:%M:%S", style="{"
 )
@@ -155,8 +168,11 @@ The config is available using the following code:
 """
 bot.config = config
 
-bot.youtube = utils.YoutubeFeed(logger)
-bot.tldr = utils.TLDRFeed()
+# bot.youtube 는 생성자에서 DB를 읽으므로 init_db() 이후에 만든다.
+# 파일 하단의 부트스트랩 구간을 볼 것.
+bot.youtube = None
+bot.tldr = None
+
 
 @bot.event
 async def on_ready() -> None:
@@ -180,32 +196,57 @@ async def on_ready() -> None:
         await bot.tree.sync()
 
 
+HEARTBEAT_DIR = "/tmp/bot_heartbeat"
+
+
+def beat(name: str) -> None:
+    """태스크가 살아있음을 파일 mtime 으로 남긴다. HEALTHCHECK 가 이 값을 본다."""
+    try:
+        os.makedirs(HEARTBEAT_DIR, exist_ok=True)
+        with open(f"{HEARTBEAT_DIR}/{name}", "w") as f:
+            f.write(datetime.now(KST).isoformat())
+    except Exception:
+        bot.logger.error(str(traceback.format_exc()))
+
+
 @tasks.loop(minutes=1.0)
 async def status_task() -> None:
     """
     Setup the game status task of the bot.
     """
-    await bot.change_presence(activity=discord.Game("ZzZz"))
+    try:
+        await bot.change_presence(activity=discord.Game("ZzZz"))
+        beat("status")
+    except Exception:
+        # 예외가 새어나가면 루프가 영구 정지하고 봇은 정상으로 보인다.
+        bot.logger.error(str(traceback.format_exc()))
 
-@tasks.loop(seconds=1)
+
+@tasks.loop(time=time(hour=9, minute=0, tzinfo=KST))
 async def news_feed():
-    now = datetime.now()
+    now = datetime.now(KST)
     channel = bot.get_channel(bot.config["FEED_CHANNEL"]["NEWS"])
-    if now.strftime("%H:%M:%S") == "09:00:00":
-        bot.logger.info("Stock Market News Feed")
-        try:
-            feeds = utils.get_investing_finance_news()
-            title = f"{now.strftime('%Y-%m-%d')} Stock Market News (Investing)"
-            embed = discord.Embed(title=f"{title}")
-            for news in feeds:
-                embed.add_field(name=news.title, value=news.link, inline=False)
-            await channel.send(embed=embed)
-        except Exception as e:
-            bot.logger.error(str(traceback.format_exc()))
-        
+    if channel is None:
+        bot.logger.error("news_feed: FEED_CHANNEL.NEWS 채널을 찾을 수 없습니다")
+        return
+    bot.logger.info("Stock Market News Feed")
+    try:
+        feeds = utils.get_investing_finance_news()
+        title = f"{now.strftime('%Y-%m-%d')} Stock Market News (Investing)"
+        embed = discord.Embed(title=f"{title}")
+        for news in feeds[:25]:
+            embed.add_field(name=news.title[:256], value=news.link[:1024], inline=False)
+        await channel.send(embed=embed)
+    except Exception:
+        bot.logger.error(str(traceback.format_exc()))
+
+
 @tasks.loop(minutes=2.5)
 async def youtube_feed():
     channel = bot.get_channel(bot.config["FEED_CHANNEL"]["YOUTUBE"])
+    if channel is None:
+        bot.logger.error("youtube_feed: FEED_CHANNEL.YOUTUBE 채널을 찾을 수 없습니다")
+        return
     try:
         await bot.youtube.get_new_video()
         rows = await helpers.db_manager.get_youtube_video()
@@ -214,17 +255,21 @@ async def youtube_feed():
         for row in rows:
             await channel.send(row[2])
             await helpers.db_manager.update_youtube_video(row[0], row[1], row[2])
-    except Exception as e:
+        beat("youtube")
+    except Exception:
         bot.logger.error(str(traceback.format_exc()))
         
-@tasks.loop(seconds=1)
+@tasks.loop(time=time(hour=10, minute=0, tzinfo=KST))
 async def tldr_feed():
-    now = datetime.now()
+    now = datetime.now(KST)
     weekday = now.weekday()
     channel = bot.get_channel(bot.config["FEED_CHANNEL"]["TLDR"])
-    if weekday not in [0, 6] and now.strftime("%H:%M:%S") == "10:00:00":
+    if channel is None:
+        bot.logger.error("tldr_feed: FEED_CHANNEL.TLDR 채널을 찾을 수 없습니다")
+        return
+    if weekday not in [0, 6]:
         bot.logger.info("TLDR Feed")
-        try:    
+        try:
             date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
             feeds = await bot.tldr.get_feed(date)
             for field in feeds:
@@ -251,18 +296,24 @@ async def on_message(message: discord.Message) -> None:
     :param message: The message that was sent.
     """
     if message.author == bot.user or message.author.bot:
-            return
-    # 모든 로그 수집
-    await helpers.db_manager.add_log(**archiving.chat2log(message))
-    
-    # Github Repository Archiving
-    if ("https://github.com/" in message.content):
-        await archiving.archive_github(message)
-    
-    # Paper Archiving 
-    if any(paper in message.content for paper in archiving.PaperSource):
-        await archiving.archive_paper(message)
-    
+        return
+
+    # 아카이빙에서 예외가 새어나가면 아래 process_commands 가 실행되지 않아
+    # 해당 메시지의 커맨드가 통째로 무시된다. 반드시 격리한다.
+    try:
+        # 모든 로그 수집
+        await helpers.db_manager.add_log(**archiving.chat2log(message))
+
+        # Github Repository Archiving
+        if "https://github.com/" in message.content:
+            await archiving.archive_github(message)
+
+        # Paper Archiving
+        if any(paper in message.content for paper in archiving.PaperSource):
+            await archiving.archive_paper(message)
+    except Exception:
+        bot.logger.error(str(traceback.format_exc()))
+
     await bot.process_commands(message)
 
 
@@ -365,7 +416,7 @@ async def on_command_error(context: Context, error) -> None:
             title="Error!",
             color=0xE02B2B,
         )
-        await context.send(embed)
+        await context.send(embed=embed)
         raise error
 
 async def load_cogs() -> None:
@@ -384,5 +435,13 @@ async def load_cogs() -> None:
 
 
 asyncio.run(init_db())
+
+# 스키마가 만들어진 뒤에 피드 객체를 만든다. YoutubeFeed 는 생성자에서
+# youtube_channel 테이블을 읽기 때문에, 순서가 바뀌면 신규 배포(테이블 없음)에서
+# "no such table" 로 봇이 기동하지 못한다.
+bot.youtube = utils.YoutubeFeed(logger)
+asyncio.run(bot.youtube.load())
+bot.tldr = utils.TLDRFeed()
+
 asyncio.run(load_cogs())
 bot.run(bot.config["TOKEN"])
