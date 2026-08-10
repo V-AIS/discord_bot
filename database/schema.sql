@@ -64,5 +64,6 @@ CREATE TABLE IF NOT EXISTS `paper` (
   `url` varchar(255) NOT NULL,
   `conference` varchar(255) NOT NULL,
   `year` varchar(10) NOT NULL,
+  `abstract` text NOT NULL DEFAULT '',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -28,6 +28,8 @@ from discord.ext.commands import Bot, Context
 import exceptions
 import archiving
 import helpers
+import helpers.db_manager
+import helpers.gemini
 import utils
 
 if not os.path.isfile(f"{os.path.realpath(os.path.dirname(__file__))}/config.json"):
@@ -145,10 +147,16 @@ logger.addHandler(file_handler)
 bot.logger = logger
 
 
+# 이미 존재하는 DB 에는 CREATE TABLE IF NOT EXISTS 가 아무 일도 하지 않는다.
+# 신규 컬럼은 여기에 등록해 ALTER TABLE 로 따로 반영한다.
+# ALTER TABLE 은 컬럼을 맨 뒤에 붙이므로, 신규 DB 와 기존 DB 의 물리적 컬럼
+# 순서가 달라진다. 그래서 조회는 SELECT * 대신 컬럼을 명시해야 한다.
+MIGRATIONS = [
+    ("paper", "abstract", "ALTER TABLE paper ADD COLUMN abstract text NOT NULL DEFAULT ''"),
+]
+
+
 async def init_db():
-    # mongodb setting
-        
-    # sql setting
     async with aiosqlite.connect(
         f"{os.path.realpath(os.path.dirname(__file__))}/database/database.db"
     ) as db:
@@ -156,6 +164,14 @@ async def init_db():
             f"{os.path.realpath(os.path.dirname(__file__))}/database/schema.sql"
         ) as file:
             await db.executescript(file.read())
+
+        for table, column, statement in MIGRATIONS:
+            async with db.execute(f"PRAGMA table_info({table})") as cursor:
+                columns = {row[1] for row in await cursor.fetchall()}
+            if column not in columns:
+                await db.execute(statement)
+                logger.info(f"Migrated: {table}.{column} 컬럼 추가")
+
         await db.commit()
 
 
@@ -189,6 +205,7 @@ async def on_ready() -> None:
     news_feed.start()
     youtube_feed.start()
     tldr_feed.start()
+    weekly_digest.start()
     
     # Insert channel info to DB
     if bot.config["SYNC_COMMANDS_GLOBALLY"]:
@@ -288,6 +305,69 @@ async def tldr_feed():
         except Exception as e:
             bot.logger.error(str(traceback.format_exc()))
 
+ARCHIVE_REACTION = {"paper": "📚", "github": "🔖"}
+ARCHIVE_LABEL = {"paper": "논문", "github": "저장소"}
+
+SUMMARY_PROMPT = (
+    "다음은 학술 논문의 초록입니다. 한국어로 3문장 이내로 요약하세요.\n"
+    "무엇을 푸는 연구인지, 어떤 방법을 쓰는지, 결과가 무엇인지 순으로 쓰세요.\n"
+    "서론이나 인사말 없이 요약만 출력하세요.\n\n초록:\n{abstract}"
+)
+SUMMARY_MAX_CHARS = 900
+
+
+def utils_clip(text: str, limit: int) -> str:
+    text = (text or "").strip()
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+async def summarize_abstract(abstract: str) -> str:
+    """초록을 한국어로 요약한다. 실패하면 빈 문자열 — 아카이빙 자체는 막지 않는다."""
+    if not abstract:
+        return ""
+    gateway = helpers.gemini.gateway_from(bot.config)
+    if not gateway:
+        return ""
+    try:
+        text = await helpers.gemini.generate(
+            gateway, SUMMARY_PROMPT.format(abstract=abstract[:6000]), max_output_tokens=512
+        )
+        return utils_clip(text, SUMMARY_MAX_CHARS)
+    except Exception as e:
+        bot.logger.error(f"요약 실패: {type(e).__name__}: {e}")
+        return ""
+
+
+async def announce_archive(message: discord.Message, result: dict) -> None:
+    """아카이빙 결과를 사용자에게 알린다.
+
+    지금까지는 조용히 DB 에만 넣어서, 사용자는 기능이 동작하는지 알 수 없었다.
+    반응이 없는 기능은 잊힌다 — 실제로 2024년부터 아카이빙 사용이 끊겼다.
+    """
+    kind = result["kind"]
+    try:
+        if result["added"]:
+            await message.add_reaction(ARCHIVE_REACTION[kind])
+            summary = await summarize_abstract(result.get("abstract", ""))
+            if summary:
+                embed = discord.Embed(
+                    title=utils_clip(result["title"], 256),
+                    description=summary,
+                    color=0x9C84EF,
+                )
+                embed.set_footer(text="Gemini 요약 · 원문을 꼭 확인하세요")
+                await message.reply(embed=embed, mention_author=False)
+        else:
+            author, when = result["original"]
+            await message.reply(
+                f"이미 공유된 {ARCHIVE_LABEL[kind]}예요! **{author}** 님이 {when[:10]} 에 올렸어요.",
+                mention_author=False,
+            )
+    except discord.HTTPException:
+        # 리액션/답장 권한이 없거나 길이 제한에 걸린 경우. 아카이빙 자체는 성공했다.
+        bot.logger.error(str(traceback.format_exc()))
+
+
 @bot.event
 async def on_message(message: discord.Message) -> None:
     """
@@ -304,17 +384,71 @@ async def on_message(message: discord.Message) -> None:
         # 모든 로그 수집
         await helpers.db_manager.add_log(**archiving.chat2log(message))
 
+        results = []
         # Github Repository Archiving
         if "https://github.com/" in message.content:
-            await archiving.archive_github(message)
+            results.append(await archiving.archive_github(message))
 
         # Paper Archiving
         if any(paper in message.content for paper in archiving.PaperSource):
-            await archiving.archive_paper(message)
+            results.append(await archiving.archive_paper(message))
+
+        for result in results:
+            if result:
+                await announce_archive(message, result)
     except Exception:
         bot.logger.error(str(traceback.format_exc()))
 
     await bot.process_commands(message)
+
+
+@tasks.loop(time=time(hour=10, minute=30, tzinfo=KST))
+async def weekly_digest():
+    """지난 주 아카이브를 한 번에 돌려준다.
+
+    122건을 모으고도 되돌려주는 경로가 없어 아카이브가 사실상 잠겨 있었다.
+    월요일에만 실행한다 — tasks.loop(time=) 는 매일 깨어나므로 요일을 본다.
+    """
+    if datetime.now(KST).weekday() != 0:
+        return
+
+    channel_id = bot.config["FEED_CHANNEL"].get("DIGEST") or bot.config["FEED_CHANNEL"]["NEWS"]
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        bot.logger.error("weekly_digest: 다이제스트 채널을 찾을 수 없습니다")
+        return
+
+    try:
+        data = await helpers.db_manager.recent_archives(days=7)
+        if not data["papers"] and not data["repos"]:
+            bot.logger.info("Weekly digest: 지난 주 아카이브 없음, 발송 생략")
+            return
+
+        embed = discord.Embed(
+            title="📚 이번 주 공유된 것들",
+            description=f"지난 7일 · 논문 {len(data['papers'])}건 · 저장소 {len(data['repos'])}건",
+            color=0x9C84EF,
+        )
+        for title, url, author in data["papers"][:10]:
+            embed.add_field(
+                name=utils_clip(title, 256),
+                value=utils_clip(f"{url}\n{author} 공유", 1024),
+                inline=False,
+            )
+        for owner, repo, author in data["repos"][:10]:
+            embed.add_field(
+                name=utils_clip(f"{owner}/{repo}", 256),
+                value=utils_clip(f"https://github.com/{owner}/{repo}\n{author} 공유", 1024),
+                inline=False,
+            )
+        if data["contributors"]:
+            credit = ", ".join(f"{name} ({count})" for name, count in data["contributors"][:8])
+            embed.set_footer(text=utils_clip(f"고마워요: {credit}", 2048))
+
+        await channel.send(embed=embed)
+        bot.logger.info(f"Weekly digest 발송 (논문 {len(data['papers'])} 저장소 {len(data['repos'])})")
+    except Exception:
+        bot.logger.error(str(traceback.format_exc()))
 
 
 @bot.event

@@ -9,6 +9,13 @@ from helpers import db_manager
 
 PaperSource = ["arxiv.org", "thecvf.com", "dl.acm.org", "proceedings.mlr.press"] # "www.nature.com", "nips.cc", "neurips.cc"
 
+# github.com/{여기}/... 가 사용자·조직이 아닌 GitHub 자체 경로인 경우
+GITHUB_RESERVED_PATHS = {
+    "features", "settings", "orgs", "topics", "collections", "sponsors",
+    "marketplace", "explore", "notifications", "pulls", "issues", "search",
+    "login", "join", "about", "pricing", "enterprise", "apps",
+}
+
 def chat2log(message):
     # DMChannel 에는 name 속성이 없다. 방어하지 않으면 DM 메시지마다
     # on_message 가 죽어 DM 커맨드가 전부 동작하지 않는다.
@@ -68,13 +75,28 @@ def extract_github_desctiption(url: str) -> str:
     return content.text.strip() if content else "No description or website provided"
 
 async def archive_github(message):
+    """저장소를 아카이브한다.
+
+    :return: dict | None — 아카이빙 대상이 아니면 None.
+             {"kind","added","original","title","url"} 형태로 호출부가
+             리액션이나 중복 안내를 붙일 수 있게 결과를 돌려준다.
+    """
     # Preprocessing
     url = get_url(message.content)
     if url is None:
-        return
+        return None
+
+    # owner/repo 형태를 직접 뽑는다. split("/")[-2:] 로 자르면
+    # "https://github.com/" 같은 링크에서 ("https:", "github.com") 이 나온다.
+    match = re.search(r"github\.com/([\w.\-]+)/([\w.\-]+)", url)
+    if match is None:
+        return None
+    username, repo_name = match.group(1), match.group(2).removesuffix(".git")
+    if username.lower() in GITHUB_RESERVED_PATHS:
+        return None
+
     description = extract_github_desctiption(url)
-    username, repo_name = url.split("/")[-2:]
-    
+
     log = chat2log(message)
     log.pop("message_content")
     log.update({
@@ -82,8 +104,14 @@ async def archive_github(message):
         "repository_name": repo_name,
         "description": description
         })
-    await db_manager.add_github(**log)
-    return
+    added, original = await db_manager.add_github(**log)
+    return {
+        "kind": "github",
+        "added": added,
+        "original": original,
+        "title": f"{username}/{repo_name}",
+        "url": url,
+    }
 
 async def archive_paper(message):
     
@@ -104,16 +132,22 @@ async def archive_paper(message):
             # https://arxiv.org/abs/2112.09686
             # https://arxiv.org/pdf/2112.09686.pdf
             paper_id = url.split("/")[-1].replace(".pdf", "")
-            search = arxiv.Search(id_list=[paper_id])
-            paper = next(search.results())
+            # Search.results() 는 폐기 대상이고, 결과가 없으면 StopIteration 이
+            # 코루틴 안에서 RuntimeError 로 바뀐다. Client 로 받아 리스트로 확인한다.
+            found = list(arxiv.Client(page_size=1, num_retries=2).results(
+                arxiv.Search(id_list=[paper_id])
+            ))
+            if not found:
+                return None
+            paper = found[0]
             result_dict = {
                 "source": "arxiv",
                 "title": paper.title,
                 "authors": "\t".join(author.name for author in paper.authors),
                 "url": f"https://arxiv.org/abs/{paper_id}",
                 "conference": "",
-                "year": paper.published.strftime("%Y")
-                
+                "year": paper.published.strftime("%Y"),
+                "abstract": (paper.summary or "").replace("\n", " ").strip(),
             }
 
         elif "thecvf" in url.lower():
@@ -182,8 +216,16 @@ async def archive_paper(message):
         else:
             result_dict = {}
 
-        if len(result_dict.keys()):
-            log.update(result_dict)
-            await db_manager.add_paper(**log)
+        if not result_dict:
+            return None
 
-        return
+        log.update(result_dict)
+        added, original = await db_manager.add_paper(**log)
+        return {
+            "kind": "paper",
+            "added": added,
+            "original": original,
+            "title": result_dict["title"],
+            "url": result_dict["url"],
+            "abstract": result_dict.get("abstract", ""),
+        }

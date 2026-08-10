@@ -1,28 +1,21 @@
-import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Context
 
-from helpers import checks
+from helpers import checks, gemini
 
-# 게이트웨이 주소는 config.json 의 TOKENS.GOOGLE.HOST 에서만 읽는다.
-# 내부 주소를 코드에 기본값으로 두면 공개 저장소에 그대로 남는다.
-GEMINI_MODEL = "gemini-3.5-flash-lite"
 GEMINI_ICON = "https://camo.githubusercontent.com/77ba4ba362fc39151379e4e7691125c8bb130eb2ade811ce9f76d4d5236c6847/68747470733a2f2f75706c6f61642e77696b696d656469612e6f72672f77696b6970656469612f636f6d6d6f6e732f7468756d622f662f66302f476f6f676c655f426172645f6c6f676f2e7376672f3132303070782d476f6f676c655f426172645f6c6f676f2e7376672e706e67"
 
 # Discord 임베드 description 상한. 초과하면 커맨드 전체가 HTTPException 으로 실패한다.
 EMBED_DESCRIPTION_LIMIT = 4096
-REQUEST_TIMEOUT_SECONDS = 60
 
 
 class LLM(commands.Cog, name="llm"):
     def __init__(self, bot):
         self.bot = bot
-        # 키가 없어도 cog 가 로딩되도록 .get() 으로 방어한다.
-        # 미설정이면 커맨드 실행 시점에 안내한다.
-        host = bot.config.get("TOKENS", {}).get("GOOGLE", {}).get("HOST") or ""
-        self.gateway = host.rstrip("/")
+        # 키가 없어도 cog 가 로딩되도록 방어한다. 미설정이면 커맨드 실행 시점에 안내한다.
+        self.gateway = gemini.gateway_from(bot.config)
 
     @commands.hybrid_command(
         name="gemini", description="Gemini에게 물어봅니다! 일회성 질문이에요!"
@@ -47,7 +40,10 @@ class LLM(commands.Cog, name="llm"):
             return
 
         try:
-            embed.description = await self._generate_content(content)
+            answer = await gemini.generate(self.gateway, content)
+            if len(answer) > EMBED_DESCRIPTION_LIMIT:
+                answer = answer[: EMBED_DESCRIPTION_LIMIT - 3] + "..."
+            embed.description = answer
             embed.color = discord.Color.green()
             embed.set_author(name="Gemini", icon_url=GEMINI_ICON)
         except Exception as e:
@@ -55,43 +51,6 @@ class LLM(commands.Cog, name="llm"):
             embed.description = "기능 확인이 필요합니다! 운영진에게 알려주세요!"
             self.bot.logger.error(f"{type(e).__name__}: {e}")
         await context.send(embed=embed)
-
-    async def _generate_content(self, content: str) -> str:
-        """Gemini Gateway 에 질문을 보내고 답변 텍스트를 돌려준다.
-
-        :param content: 사용자가 물어본 내용
-        :return: 임베드에 넣을 수 있도록 길이를 자른 답변 텍스트
-        """
-        url = f"{self.gateway}/v1beta/models/{GEMINI_MODEL}:generateContent"
-        payload = {
-            "contents": [{"role": "user", "parts": [{"text": content}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1024},
-        }
-
-        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, json=payload) as response:
-                # 4xx/5xx 본문도 JSON 이라 status 를 먼저 확인하지 않으면
-                # 아래 키 접근이 엉뚱한 KeyError 로 바뀐다.
-                response.raise_for_status()
-                data = await response.json()
-
-        candidates = data.get("candidates") or []
-        if not candidates:
-            raise RuntimeError(f"candidates 없음: {str(data)[:300]}")
-
-        candidate = candidates[0]
-        parts = (candidate.get("content") or {}).get("parts") or []
-        text = "".join(part.get("text", "") for part in parts).strip()
-        if not text:
-            # 안전 필터 차단(SAFETY)이나 토큰 초과(MAX_TOKENS)에서 본문이 비어 온다.
-            raise RuntimeError(
-                f"본문이 비어 있음 (finishReason={candidate.get('finishReason')})"
-            )
-
-        if len(text) > EMBED_DESCRIPTION_LIMIT:
-            text = text[: EMBED_DESCRIPTION_LIMIT - 3] + "..."
-        return text
 
 
 async def setup(bot):
