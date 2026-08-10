@@ -113,6 +113,9 @@ ENV/
 env.bak/
 venv.bak/
 config.json
+# 실 토큰을 담는 모든 설정 변형 (config_test.json 등). 샘플만 추적한다.
+config_*.json
+!config_sample.json
 
 # Spyder project settings
 .spyderproject
@@ -147,3 +150,12 @@ database
 
 # Log file
 discord.log
+logs/*
+!logs/.gitkeep
+
+# Harness intermediate artifacts
+_workspace/
+_workspace_*/
+# 실험용 스크래치 파일
+bot_test.py
+tmp.py

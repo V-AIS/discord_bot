@@ -5,7 +5,12 @@ services:
       dockerfile: Dockerfile
       context: ./
     volumes:
-      - ./:/app
+      # 코드는 이미지에서 온다. 아래 세 가지만 호스트에서 주입한다.
+      # config.json 은 코드 전체에서 읽기만 하므로 :ro 로 건다.
+      - ./config.json:/app/config.json:ro
+      # SQLite 는 저널/WAL 파일을 같은 디렉터리에 만들어야 하므로 반드시 디렉터리로 마운트한다.
+      - ./database:/app/database
+      - ./logs:/app/logs
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     environment:

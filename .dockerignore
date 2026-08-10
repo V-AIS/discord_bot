@@ -1,0 +1,34 @@
+# 비밀 파일 — 런타임에는 볼륨으로 마운트한다. 이미지 레이어에 굳으면 유출된다.
+config.json
+config_*.json
+
+# 운영 데이터 — 볼륨으로 마운트한다. 회원 대화 로그가 이미지에 포함되면 안 된다.
+database/
+*.db
+*.db-journal
+*.db-wal
+
+# 로그
+logs/
+*.log
+
+# VCS / 개발 도구
+.git
+.gitignore
+.github
+.idea
+.claude
+CLAUDE.md
+_workspace/
+_workspace_*/
+
+# 파이썬 캐시
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 실험용 스크래치 파일
+bot_test.py
+tmp.py
